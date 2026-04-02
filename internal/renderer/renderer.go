@@ -20,6 +20,7 @@ const (
 // RenderContext holds rendering state and terminal capabilities.
 type RenderContext struct {
 	TermWidth     int
+	CellHeight    int // terminal cell height in pixels (for image row calculation)
 	ColorMode     terminal.ColorMode
 	ImageProtocol terminal.ImageProtocol
 	Theme         *terminal.Theme

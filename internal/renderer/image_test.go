@@ -185,3 +185,83 @@ func TestImageFallbackPlainText(t *testing.T) {
 		t.Fatalf("ANSI codes found in NO_COLOR mode: %q", result)
 	}
 }
+
+// TestImageRows tests the imageRows helper function.
+func TestImageRows(t *testing.T) {
+	tests := []struct {
+		imgHeight  int
+		cellHeight int
+		expected   int
+	}{
+		{160, 16, 10},  // exact division
+		{161, 16, 11},  // rounds up
+		{1, 16, 1},     // minimum 1 row
+		{0, 16, 1},     // zero height -> 1 row minimum (via ceil)
+		{100, 20, 5},   // exact division
+		{101, 20, 6},   // rounds up
+		{16, 0, 1},     // zero cell height -> fallback to 16, ceil(16/16)=1
+		{32, -1, 2},    // negative cell height -> fallback to 16, ceil(32/16)=2
+	}
+	for _, tt := range tests {
+		got := imageRows(tt.imgHeight, tt.cellHeight)
+		if got != tt.expected {
+			t.Errorf("imageRows(%d, %d) = %d, want %d", tt.imgHeight, tt.cellHeight, got, tt.expected)
+		}
+	}
+}
+
+// TestImagePlaceholderLines tests that rendered images include placeholder lines
+// to account for the image's visual height in the pager.
+func TestImagePlaceholderLines(t *testing.T) {
+	// Create a tall test image (10x160 pixels)
+	tmpDir, err := os.MkdirTemp("", "img-placeholder-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+	imgPath := filepath.Join(tmpDir, "tall.png")
+	createTestPNG(t, imgPath, 10, 160)
+
+	md := fmt.Sprintf("![tall image](%s)", imgPath)
+	source := []byte(md)
+	node := parser.Parse(source)
+
+	// Use CellHeight=16 so 160px image = 10 rows, meaning 9 placeholder lines
+	ctx := &RenderContext{
+		TermWidth:     80,
+		CellHeight:    16,
+		ColorMode:     terminal.ColorTrue,
+		ImageProtocol: terminal.ImageSixel,
+		Theme:         terminal.DefaultTheme(),
+		IsTTY:         true,
+	}
+
+	result := Render(node, source, ctx)
+
+	// The Sixel escape sequence ends with \x1b\\ (ST).
+	// After the ST + newline, there should be placeholder empty lines before the caption.
+	sixelEnd := strings.LastIndex(result, "\x1b\\")
+	if sixelEnd < 0 {
+		t.Fatalf("Sixel output missing ST terminator")
+	}
+
+	afterSixel := result[sixelEnd+2:]
+	// Count leading newlines (first newline is the line after the escape sequence,
+	// then rows-1 placeholder newlines)
+	newlineCount := 0
+	for _, ch := range afterSixel {
+		if ch == '\n' {
+			newlineCount++
+		} else {
+			break
+		}
+	}
+
+	// 160px / 16px = 10 rows. The escape sequence itself is 1 line,
+	// so we need 9 placeholder lines = 9 additional newlines.
+	// Plus the first newline after the escape sequence = 10 newlines total.
+	expectedNewlines := 10 // 1 (after escape) + 9 (placeholders)
+	if newlineCount != expectedNewlines {
+		t.Errorf("expected %d newlines after Sixel data, got %d", expectedNewlines, newlineCount)
+	}
+}

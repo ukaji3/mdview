@@ -55,6 +55,7 @@ func main() {
 	// 6. Build render context
 	ctx := &renderer.RenderContext{
 		TermWidth:     caps.Width,
+		CellHeight:    caps.CellHeight,
 		ColorMode:     caps.ColorMode,
 		ImageProtocol: caps.ImageProtocol,
 		Theme:         caps.Theme,
@@ -86,6 +87,7 @@ func main() {
 			ast := parser.Parse(source)
 			rctx := &renderer.RenderContext{
 				TermWidth:     termWidth,
+				CellHeight:    caps.CellHeight,
 				ColorMode:     caps.ColorMode,
 				ImageProtocol: caps.ImageProtocol,
 				Theme:         caps.Theme,

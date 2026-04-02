@@ -114,6 +114,16 @@ func TestDetectCapabilities_ReturnsNonNil(t *testing.T) {
 	if caps.Theme == nil {
 		t.Error("expected non-nil Theme")
 	}
+	if caps.CellHeight < 1 {
+		t.Errorf("expected CellHeight >= 1, got %d", caps.CellHeight)
+	}
+}
+
+func TestDetectCellHeight_Positive(t *testing.T) {
+	h := DetectCellHeight()
+	if h < 1 {
+		t.Errorf("expected DetectCellHeight >= 1, got %d", h)
+	}
 }
 
 // --- DetectImageProtocol tests ---

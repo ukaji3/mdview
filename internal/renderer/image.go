@@ -52,10 +52,31 @@ func renderImage(buf *strings.Builder, n *ast.Image, entering bool, source []byt
 	buf.WriteString(encoded)
 	buf.WriteByte('\n')
 
+	// Insert placeholder lines so the pager accounts for the image's visual height.
+	// The image escape sequence counts as 1 line; we add (rows - 1) empty lines.
+	imgHeight := img.Bounds().Dy()
+	rows := imageRows(imgHeight, ctx.CellHeight)
+	for i := 1; i < rows; i++ {
+		buf.WriteByte('\n')
+	}
+
 	// Output caption with alt text
 	renderImageCaption(buf, altText, ctx)
 
 	return ast.WalkSkipChildren, nil
+}
+
+// imageRows calculates how many terminal rows an image of the given pixel height
+// will occupy, based on the terminal cell height in pixels.
+func imageRows(imgHeight int, cellHeight int) int {
+	if cellHeight <= 0 {
+		cellHeight = 16 // fallback
+	}
+	rows := (imgHeight + cellHeight - 1) / cellHeight
+	if rows < 1 {
+		rows = 1
+	}
+	return rows
 }
 
 // encodeImageByProtocol dispatches image encoding to the appropriate protocol encoder.

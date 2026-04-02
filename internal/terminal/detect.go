@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 
+	"golang.org/x/sys/unix"
 	"golang.org/x/term"
 )
 
@@ -29,6 +30,7 @@ const (
 // Capabilities holds detected terminal capabilities.
 type Capabilities struct {
 	Width         int
+	CellHeight    int // terminal cell height in pixels (for image row calculation)
 	ColorMode     ColorMode
 	ImageProtocol ImageProtocol
 	IsTTY         bool
@@ -109,6 +111,17 @@ func DetectImageProtocol() ImageProtocol {
 	return ImageNone
 }
 
+// DetectCellHeight returns the terminal cell height in pixels.
+// It uses the TIOCGWINSZ ioctl to get pixel dimensions and divides by rows.
+// Falls back to 16 pixels if detection fails.
+func DetectCellHeight() int {
+	ws, err := unix.IoctlGetWinsize(int(os.Stdout.Fd()), unix.TIOCGWINSZ)
+	if err != nil || ws.Row == 0 || ws.Ypixel == 0 {
+		return 16 // fallback: typical cell height
+	}
+	return int(ws.Ypixel) / int(ws.Row)
+}
+
 // DetectCapabilities detects all terminal capabilities and returns
 // a Capabilities struct ready for use by the renderer.
 func DetectCapabilities() *Capabilities {
@@ -126,6 +139,7 @@ func DetectCapabilities() *Capabilities {
 
 	return &Capabilities{
 		Width:         DetectWidth(),
+		CellHeight:    DetectCellHeight(),
 		ColorMode:     mode,
 		ImageProtocol: imgProto,
 		IsTTY:         isTTY,

@@ -130,6 +130,14 @@ func RenderMermaid(code, theme string, ctx *RenderContext) string {
 			if err == nil {
 				buf.WriteString(encoded)
 				buf.WriteByte('\n')
+
+				// Insert placeholder lines so the pager accounts for the image's visual height.
+				imgHeight := img.Bounds().Dy()
+				rows := imageRows(imgHeight, ctx.CellHeight)
+				for i := 1; i < rows; i++ {
+					buf.WriteByte('\n')
+				}
+
 				return buf.String()
 			}
 		}
