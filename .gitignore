@@ -1,0 +1,30 @@
+# Build output
+build/
+/mdview
+/mdrender
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+**/testdata/rapid/
+
+# Kiro
+.kiro/
