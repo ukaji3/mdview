@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/user/mdrender/internal/sixel"
-	"github.com/user/mdrender/internal/terminal"
+	"github.com/ukaji3/mdview/internal/sixel"
+	"github.com/ukaji3/mdview/internal/terminal"
 )
 
 // IsMermaid returns true only when the language identifier is exactly "mermaid".

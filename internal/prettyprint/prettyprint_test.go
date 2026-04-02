@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/user/mdrender/internal/parser"
+	"github.com/ukaji3/mdview/internal/parser"
 	"github.com/yuin/goldmark/ast"
 	east "github.com/yuin/goldmark/extension/ast"
 	"pgregory.net/rapid"

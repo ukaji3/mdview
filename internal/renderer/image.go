@@ -4,10 +4,10 @@ import (
 	"image"
 	"strings"
 
-	"github.com/user/mdrender/internal/iterm2"
-	"github.com/user/mdrender/internal/kitty"
-	"github.com/user/mdrender/internal/sixel"
-	"github.com/user/mdrender/internal/terminal"
+	"github.com/ukaji3/mdview/internal/iterm2"
+	"github.com/ukaji3/mdview/internal/kitty"
+	"github.com/ukaji3/mdview/internal/sixel"
+	"github.com/ukaji3/mdview/internal/terminal"
 	"github.com/yuin/goldmark/ast"
 )
 

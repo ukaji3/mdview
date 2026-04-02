@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/user/mdrender/internal/parser"
-	"github.com/user/mdrender/internal/terminal"
+	"github.com/ukaji3/mdview/internal/parser"
+	"github.com/ukaji3/mdview/internal/terminal"
 	"pgregory.net/rapid"
 )
 

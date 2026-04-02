@@ -5,12 +5,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/user/mdrender/internal/cli"
-	"github.com/user/mdrender/internal/pager"
-	"github.com/user/mdrender/internal/parser"
-	"github.com/user/mdrender/internal/prettyprint"
-	"github.com/user/mdrender/internal/renderer"
-	"github.com/user/mdrender/internal/terminal"
+	"github.com/ukaji3/mdview/internal/cli"
+	"github.com/ukaji3/mdview/internal/pager"
+	"github.com/ukaji3/mdview/internal/parser"
+	"github.com/ukaji3/mdview/internal/prettyprint"
+	"github.com/ukaji3/mdview/internal/renderer"
+	"github.com/ukaji3/mdview/internal/terminal"
 	"golang.org/x/term"
 )
 

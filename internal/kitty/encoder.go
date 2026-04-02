@@ -8,7 +8,7 @@ import (
 	"image/png"
 	"strings"
 
-	"github.com/user/mdrender/internal/sixel"
+	"github.com/ukaji3/mdview/internal/sixel"
 )
 
 const chunkSize = 4096

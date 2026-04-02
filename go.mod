@@ -1,4 +1,4 @@
-module github.com/user/mdrender
+module github.com/ukaji3/mdview
 
 go 1.25.0
 
