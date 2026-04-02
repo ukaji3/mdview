@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/mattn/go-runewidth"
 	"github.com/yuin/goldmark/ast"
 )
 
@@ -85,32 +86,39 @@ func renderCodeBox(buf *strings.Builder, lines []string, lang string, ctx *Rende
 
 	// Inner content area:
 	// "│" + " " + lineNum + " " + "│" + " " + code + padding + " " + "│"
-	// Border chars: 1 (left │) + 1 (space) + lineNumWidth + 1 (space) + 1 (│) + 1 (space) + ... + 1 (space) + 1 (right │)
-	// = lineNumWidth + 7
-	overhead := lineNumWidth + 7
+	// Use actual display width of box drawing characters
+	borderCharWidth := runewidth.RuneWidth('│')
+	overhead := borderCharWidth + 1 + lineNumWidth + 1 + borderCharWidth + 1 + 1 + borderCharWidth
 	codeAreaWidth := width - overhead
 	if codeAreaWidth < 1 {
 		codeAreaWidth = 1
 	}
 
 	// --- Top border ---
+	// Use display width for border calculations
+	dashWidth := runewidth.RuneWidth('─')
+	topLeftWidth := runewidth.StringWidth("┌─")
+	topRightWidth := runewidth.RuneWidth('┐')
 	buf.WriteString(borderColor)
 	buf.WriteString("┌─")
 	if lang != "" {
 		buf.WriteString(" ")
 		buf.WriteString(lang)
 		buf.WriteString(" ")
-		remaining := width - 4 - len(lang) - 2 // "┌─" + " lang " + "─...─" + "┐"
-		if remaining < 0 {
-			remaining = 0
+		langDisplayWidth := runewidth.StringWidth(lang)
+		remainingWidth := width - topLeftWidth - 1 - langDisplayWidth - 1 - topRightWidth
+		if remainingWidth < 0 {
+			remainingWidth = 0
 		}
-		buf.WriteString(strings.Repeat("─", remaining))
+		dashCount := remainingWidth / dashWidth
+		buf.WriteString(strings.Repeat("─", dashCount))
 	} else {
-		remaining := width - 3 // "┌─" + "─...─" + "┐"
-		if remaining < 0 {
-			remaining = 0
+		remainingWidth := width - topLeftWidth - topRightWidth
+		if remainingWidth < 0 {
+			remainingWidth = 0
 		}
-		buf.WriteString(strings.Repeat("─", remaining))
+		dashCount := remainingWidth / dashWidth
+		buf.WriteString(strings.Repeat("─", dashCount))
 	}
 	buf.WriteString("┐")
 	buf.WriteString(Reset)
@@ -155,18 +163,22 @@ func renderCodeBox(buf *strings.Builder, lines []string, lang string, ctx *Rende
 	// --- Bottom border ---
 	buf.WriteString(borderColor)
 	buf.WriteString("└")
-	remaining := width - 2 // "└" + "─...─" + "┘"
-	if remaining < 0 {
-		remaining = 0
+	bottomLeftWidth := runewidth.RuneWidth('└')
+	bottomRightWidth := runewidth.RuneWidth('┘')
+	remainingWidth := width - bottomLeftWidth - bottomRightWidth
+	if remainingWidth < 0 {
+		remainingWidth = 0
 	}
-	buf.WriteString(strings.Repeat("─", remaining))
+	dashCount := remainingWidth / dashWidth
+	buf.WriteString(strings.Repeat("─", dashCount))
 	buf.WriteString("┘")
 	buf.WriteString(Reset)
 	buf.WriteByte('\n')
 }
 
 // displayWidth returns the visible character width of a string,
-// ignoring ANSI escape sequences. CJK characters count as 2.
+// ignoring ANSI escape sequences. Uses go-runewidth for accurate
+// East Asian Width handling.
 func displayWidth(s string) int {
 	w := 0
 	inEscape := false
@@ -181,22 +193,9 @@ func displayWidth(s string) int {
 			}
 			continue
 		}
-		if isCJK(r) {
-			w += 2
-		} else {
-			w++
-		}
+		w += runewidth.RuneWidth(r)
 	}
 	return w
-}
-
-// isCJK returns true if the rune is a CJK character (double-width).
-func isCJK(r rune) bool {
-	return (r >= 0x4E00 && r <= 0x9FFF) ||
-		(r >= 0x3040 && r <= 0x309F) ||
-		(r >= 0x30A0 && r <= 0x30FF) ||
-		(r >= 0xF900 && r <= 0xFAFF) ||
-		(r >= 0xFF00 && r <= 0xFFEF)
 }
 
 // truncateLine truncates a line to fit within maxWidth visible columns.
@@ -209,22 +208,13 @@ func truncateLine(line string, maxWidth int) string {
 	w := 0
 	runes := []rune(line)
 	for i, r := range runes {
-		rw := 1
-		if isCJK(r) {
-			rw = 2
-		}
+		rw := runewidth.RuneWidth(r)
 		if w+rw > maxWidth {
-			// Need to truncate: replace last char position with ellipsis
-			// The ellipsis "…" takes 1 column
 			if maxWidth >= 1 {
-				// Find the cut point that leaves room for "…"
 				cutW := 0
 				cutIdx := 0
 				for j, cr := range runes[:i] {
-					crw := 1
-					if isCJK(cr) {
-						crw = 2
-					}
+					crw := runewidth.RuneWidth(cr)
 					if cutW+crw > maxWidth-1 {
 						break
 					}

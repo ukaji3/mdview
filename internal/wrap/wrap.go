@@ -3,35 +3,23 @@ package wrap
 import (
 	"strings"
 	"unicode/utf8"
+
+	"github.com/mattn/go-runewidth"
 )
 
-// isCJK returns true if the rune is a CJK character that should be wrapped
+// isCJK returns true if the rune is a wide character that should be wrapped
 // at character boundaries and occupies 2 columns.
 func isCJK(r rune) bool {
-	return (r >= 0x4E00 && r <= 0x9FFF) || // CJK Unified Ideographs
-		(r >= 0x3040 && r <= 0x309F) || // Hiragana
-		(r >= 0x30A0 && r <= 0x30FF) || // Katakana
-		(r >= 0xF900 && r <= 0xFAFF) || // CJK Compatibility Ideographs
-		(r >= 0xFF00 && r <= 0xFFEF) // Fullwidth Forms
+	return runewidth.RuneWidth(r) == 2
 }
-
-// runeWidth returns the display width of a rune.
-// CJK characters are 2 columns wide; all others are 1.
+// runeWidth returns the display width of a rune using go-runewidth.
 func runeWidth(r rune) int {
-	if isCJK(r) {
-		return 2
-	}
-	return 1
+	return runewidth.RuneWidth(r)
 }
 
-// stringWidth returns the display width of a string,
-// accounting for double-width CJK characters.
+// stringWidth returns the display width of a string using go-runewidth.
 func stringWidth(s string) int {
-	w := 0
-	for _, r := range s {
-		w += runeWidth(r)
-	}
-	return w
+	return runewidth.StringWidth(s)
 }
 
 // Wrap wraps text to the given width.
