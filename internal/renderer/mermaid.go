@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/user/mdrender/internal/sixel"
@@ -42,8 +43,11 @@ func CleanupTempFiles(paths ...string) {
 func RenderMermaid(code, theme string, ctx *RenderContext) string {
 	var buf strings.Builder
 
-	// Create temp input file
-	inputFile, err := os.CreateTemp("", "mermaid-*.mmd")
+	// Create temp input file.
+	// Use a directory under $HOME if available, because snap-confined mmdc
+	// cannot access the system /tmp directory.
+	tmpDir := mermaidTempDir()
+	inputFile, err := os.CreateTemp(tmpDir, "mermaid-*.mmd")
 	if err != nil {
 		// Temp file creation error
 		errMsg := "[Mermaid一時ファイルエラー]"
@@ -145,6 +149,24 @@ func RenderMermaid(code, theme string, ctx *RenderContext) string {
 	lines := strings.Split(code, "\n")
 	renderCodeBox(&buf, lines, "mermaid", ctx)
 	return buf.String()
+}
+
+// mermaidTempDir returns a temporary directory suitable for mmdc.
+// Snap-confined mmdc cannot access /tmp or ~/.cache, so we detect snap
+// installations and use ~/snap/mermaid-cli/common/tmp/ instead.
+func mermaidTempDir() string {
+	// Check if mmdc is a snap binary
+	mmdcPath, err := exec.LookPath("mmdc")
+	if err == nil && strings.Contains(mmdcPath, "/snap/") {
+		home, err := os.UserHomeDir()
+		if err == nil {
+			dir := filepath.Join(home, "snap", "mermaid-cli", "common", "tmp")
+			if err := os.MkdirAll(dir, 0755); err == nil {
+				return dir
+			}
+		}
+	}
+	return os.TempDir()
 }
 
 // detectMermaidDiagramType extracts the diagram type from the first line of
