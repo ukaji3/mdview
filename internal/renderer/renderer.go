@@ -101,22 +101,10 @@ func Render(node ast.Node, source []byte, ctx *RenderContext) string {
 			return renderAutoLinkStub(&buf, v, entering)
 
 		case *ast.RawHTML:
-			if entering {
-				for i := 0; i < v.Segments.Len(); i++ {
-					seg := v.Segments.At(i)
-					buf.Write(seg.Value(source))
-				}
-			}
-			return ast.WalkContinue, nil
+			return renderRawHTML(&buf, v, entering, source, ctx)
 
 		case *ast.HTMLBlock:
-			if entering {
-				for i := 0; i < v.Lines().Len(); i++ {
-					seg := v.Lines().At(i)
-					buf.Write(seg.Value(source))
-				}
-			}
-			return ast.WalkContinue, nil
+			return renderHTMLBlock(&buf, v, entering, source, ctx)
 
 		case *ast.TextBlock:
 			if !entering {
