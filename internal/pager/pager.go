@@ -26,6 +26,7 @@ type Pager struct {
 	matchIdx   int        // current match index
 	renderFunc RenderFunc // callback for re-rendering (nil = no re-render)
 	filePath   string     // file to watch (empty = no watching)
+	hasImages  bool       // whether content contains image escape sequences
 }
 
 // ShouldPage determines whether pager mode should be used.
@@ -42,14 +43,23 @@ func New(content string, termWidth, termHeight int) *Pager {
 	if h < 1 {
 		h = 1
 	}
+	hasImages := containsImageSequences(content)
 	return &Pager{
-		lines:    lines,
-		offset:   0,
-		height:   h,
-		width:    termWidth,
-		matches:  nil,
-		matchIdx: -1,
+		lines:     lines,
+		offset:    0,
+		height:    h,
+		width:     termWidth,
+		matches:   nil,
+		matchIdx:  -1,
+		hasImages: hasImages,
 	}
+}
+
+// containsImageSequences checks if content contains terminal image escape sequences.
+func containsImageSequences(content string) bool {
+	return strings.Contains(content, "\x1b_G") || // Kitty
+		strings.Contains(content, "\x1bPq") || // Sixel
+		strings.Contains(content, "\x1b]1337;") // iTerm2
 }
 
 // SetRenderFunc sets the callback used to re-render content on resize or file change.
@@ -70,6 +80,7 @@ func (p *Pager) UpdateContent(content string, newWidth, newHeight int) {
 	if p.height < 1 {
 		p.height = 1
 	}
+	p.hasImages = containsImageSequences(content)
 	// Clamp offset
 	maxOffset := len(p.lines) - p.height
 	if maxOffset < 0 {
@@ -144,6 +155,14 @@ func (p *Pager) Height() int {
 // render draws the current viewport and status bar to the terminal.
 func (p *Pager) render(fd int) {
 	var buf strings.Builder
+
+	// Clear any existing terminal images before redrawing.
+	// Kitty: delete all images on screen
+	// Sixel/iTerm2: clearing the screen is sufficient since they are inline
+	if p.hasImages {
+		buf.WriteString("\x1b_Ga=d\x1b\\") // Kitty: delete all placements
+	}
+
 	// Move cursor to top-left
 	buf.WriteString("\x1b[H")
 	visible := p.VisibleLines()
