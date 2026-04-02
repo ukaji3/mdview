@@ -22,7 +22,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 2. Read input (file or stdin)
+	// 2. Check image mode: display diagnostics and exit
+	if config.CheckImage {
+		terminal.CheckImageSupport()
+		return
+	}
+
+	// 3. Read input (file or stdin)
 	source, err := cli.ReadInput(config)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

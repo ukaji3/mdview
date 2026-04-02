@@ -78,11 +78,7 @@ func DetectSixel() bool {
 }
 
 // DetectImageProtocol detects which image protocol the terminal supports.
-// It checks environment variables in priority order:
-//   - TERM_PROGRAM "WezTerm", "iTerm.app", "mintty" → ImageITerm2
-//   - TERM containing "kitty" or TERM_PROGRAM "kitty" → ImageKitty
-//   - Falls back to Sixel detection via DetectSixel
-//   - If nothing detected → ImageNone
+// It checks environment variables first, then falls back to escape sequence probes.
 func DetectImageProtocol() ImageProtocol {
 	termProgram := os.Getenv("TERM_PROGRAM")
 
@@ -96,6 +92,14 @@ func DetectImageProtocol() ImageProtocol {
 	termEnv := os.Getenv("TERM")
 	if strings.Contains(termEnv, "kitty") {
 		return ImageKitty
+	}
+
+	if os.Getenv("KITTY_WINDOW_ID") != "" {
+		return ImageKitty
+	}
+
+	if os.Getenv("LC_TERMINAL") == "iTerm2" {
+		return ImageITerm2
 	}
 
 	if DetectSixel() {

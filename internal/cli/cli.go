@@ -17,6 +17,7 @@ type Config struct {
 	NoColor      bool   // Disable color output
 	NoPager      bool   // Disable pager mode
 	PrettyPrint  bool   // Pretty print mode (output Markdown from AST)
+	CheckImage   bool   // Check and display image protocol support
 }
 
 // Usage message printed when no input is provided.
@@ -32,6 +33,7 @@ Options:
   --no-pager               Disable pager mode
   --pretty-print           Output re-generated Markdown from AST
   --no-color               Disable color output
+  --check-image            Check terminal image protocol support
 `
 
 // ParseArgs parses command-line arguments and returns a Config.
@@ -45,6 +47,7 @@ func ParseArgs(args []string) (*Config, error) {
 	fs.BoolVar(&cfg.NoPager, "no-pager", false, "")
 	fs.BoolVar(&cfg.PrettyPrint, "pretty-print", false, "")
 	fs.BoolVar(&cfg.NoColor, "no-color", false, "")
+	fs.BoolVar(&cfg.CheckImage, "check-image", false, "")
 
 	if err := fs.Parse(args); err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
