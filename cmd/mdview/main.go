@@ -71,7 +71,29 @@ func main() {
 
 	// 10. Pager decision
 	if pager.ShouldPage(lineCount, termHeight, caps.IsTTY, config.NoPager) {
+		// Create render function closure for re-rendering on resize/file change
+		renderFunc := func(termWidth int) string {
+			source, err := cli.ReadInput(config)
+			if err != nil {
+				return fmt.Sprintf("Error reading file: %v", err)
+			}
+			ast := parser.Parse(source)
+			rctx := &renderer.RenderContext{
+				TermWidth:     termWidth,
+				ColorMode:     caps.ColorMode,
+				ImageProtocol: caps.ImageProtocol,
+				Theme:         caps.Theme,
+				IsTTY:         caps.IsTTY,
+				MermaidTheme:  config.MermaidTheme,
+			}
+			return renderer.Render(ast, source, rctx)
+		}
+
 		p := pager.New(output, caps.Width, termHeight)
+		p.SetRenderFunc(renderFunc)
+		if config.FilePath != "" {
+			p.SetFilePath(config.FilePath)
+		}
 		if err := p.Run(); err != nil {
 			// Fallback: print directly on pager error
 			fmt.Print(output)

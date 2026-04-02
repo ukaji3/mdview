@@ -196,3 +196,173 @@ func TestProperty29_StatusBarFormat(t *testing.T) {
 		}
 	})
 }
+
+// TestUpdateContent_ScrollPositionClamping verifies that UpdateContent clamps
+// the scroll offset to a valid range when content shrinks.
+func TestUpdateContent_ScrollPositionClamping(t *testing.T) {
+	// Create pager with 100 lines, height 10 (9 visible)
+	var lines []string
+	for i := 0; i < 100; i++ {
+		lines = append(lines, fmt.Sprintf("line %d", i))
+	}
+	content := strings.Join(lines, "\n")
+	p := New(content, 80, 10)
+
+	// Scroll to bottom
+	p.GoToBottom()
+	if p.Offset() == 0 {
+		t.Fatal("expected non-zero offset after GoToBottom")
+	}
+	oldOffset := p.Offset()
+
+	// Now update with much shorter content (5 lines)
+	var shortLines []string
+	for i := 0; i < 5; i++ {
+		shortLines = append(shortLines, fmt.Sprintf("short %d", i))
+	}
+	shortContent := strings.Join(shortLines, "\n")
+	p.UpdateContent(shortContent, 80, 10)
+
+	// Offset should be clamped: maxOffset = 5 - 9 = 0 (clamped to 0)
+	if p.Offset() > 0 {
+		t.Fatalf("expected offset 0 after UpdateContent with short content, got %d (was %d)", p.Offset(), oldOffset)
+	}
+	if p.LineCount() != 5 {
+		t.Fatalf("expected 5 lines, got %d", p.LineCount())
+	}
+}
+
+// TestUpdateContent_PreservesOffset verifies that UpdateContent preserves
+// the scroll offset when the new content is long enough.
+func TestUpdateContent_PreservesOffset(t *testing.T) {
+	var lines []string
+	for i := 0; i < 100; i++ {
+		lines = append(lines, fmt.Sprintf("line %d", i))
+	}
+	content := strings.Join(lines, "\n")
+	p := New(content, 80, 20)
+
+	// Scroll to offset 30
+	p.ScrollDown(30)
+	if p.Offset() != 30 {
+		t.Fatalf("expected offset 30, got %d", p.Offset())
+	}
+
+	// Update with equally long content
+	var newLines []string
+	for i := 0; i < 100; i++ {
+		newLines = append(newLines, fmt.Sprintf("new line %d", i))
+	}
+	newContent := strings.Join(newLines, "\n")
+	p.UpdateContent(newContent, 80, 20)
+
+	// Offset should be preserved
+	if p.Offset() != 30 {
+		t.Fatalf("expected offset 30 preserved, got %d", p.Offset())
+	}
+}
+
+// TestUpdateContent_HeightClamp verifies that UpdateContent handles
+// very small terminal heights correctly.
+func TestUpdateContent_HeightClamp(t *testing.T) {
+	content := "line1\nline2\nline3"
+	p := New(content, 80, 10)
+
+	// Update with height=1 (should clamp to height=1 after subtracting status bar)
+	p.UpdateContent(content, 80, 1)
+	if p.Height() != 1 {
+		t.Fatalf("expected height 1, got %d", p.Height())
+	}
+
+	// Update with height=0 (should clamp to height=1)
+	p.UpdateContent(content, 80, 0)
+	if p.Height() != 1 {
+		t.Fatalf("expected height 1 for zero termHeight, got %d", p.Height())
+	}
+}
+
+// TestSetRenderFunc verifies that SetRenderFunc stores the callback.
+func TestSetRenderFunc(t *testing.T) {
+	p := New("hello", 80, 24)
+	if p.renderFunc != nil {
+		t.Fatal("expected nil renderFunc initially")
+	}
+
+	called := false
+	p.SetRenderFunc(func(termWidth int) string {
+		called = true
+		return "re-rendered"
+	})
+
+	if p.renderFunc == nil {
+		t.Fatal("expected non-nil renderFunc after SetRenderFunc")
+	}
+
+	result := p.renderFunc(80)
+	if !called {
+		t.Fatal("renderFunc was not called")
+	}
+	if result != "re-rendered" {
+		t.Fatalf("expected 're-rendered', got %q", result)
+	}
+}
+
+// TestSetFilePath verifies that SetFilePath stores the path.
+func TestSetFilePath(t *testing.T) {
+	p := New("hello", 80, 24)
+	if p.filePath != "" {
+		t.Fatal("expected empty filePath initially")
+	}
+
+	p.SetFilePath("/tmp/test.md")
+	if p.filePath != "/tmp/test.md" {
+		t.Fatalf("expected '/tmp/test.md', got %q", p.filePath)
+	}
+}
+
+// TestUpdateContent_PropertyBased uses rapid to verify UpdateContent always
+// produces valid state regardless of inputs.
+func TestUpdateContent_PropertyBased(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		// Initial content
+		numLines := rapid.IntRange(1, 200).Draw(t, "numLines")
+		var lines []string
+		for i := 0; i < numLines; i++ {
+			lines = append(lines, fmt.Sprintf("line %d", i))
+		}
+		content := strings.Join(lines, "\n")
+		termHeight := rapid.IntRange(2, 100).Draw(t, "termHeight")
+		p := New(content, 80, termHeight)
+
+		// Scroll to a random position
+		scrollAmount := rapid.IntRange(0, numLines).Draw(t, "scrollAmount")
+		p.ScrollDown(scrollAmount)
+
+		// Generate new content with different length
+		newNumLines := rapid.IntRange(1, 200).Draw(t, "newNumLines")
+		var newLines []string
+		for i := 0; i < newNumLines; i++ {
+			newLines = append(newLines, fmt.Sprintf("new line %d", i))
+		}
+		newContent := strings.Join(newLines, "\n")
+		newHeight := rapid.IntRange(1, 100).Draw(t, "newHeight")
+		newWidth := rapid.IntRange(10, 200).Draw(t, "newWidth")
+
+		p.UpdateContent(newContent, newWidth, newHeight)
+
+		// Verify invariants
+		if p.Offset() < 0 {
+			t.Fatalf("offset %d < 0", p.Offset())
+		}
+		maxOffset := p.LineCount() - p.Height()
+		if maxOffset < 0 {
+			maxOffset = 0
+		}
+		if p.Offset() > maxOffset {
+			t.Fatalf("offset %d > maxOffset %d", p.Offset(), maxOffset)
+		}
+		if p.Height() < 1 {
+			t.Fatalf("height %d < 1", p.Height())
+		}
+	})
+}

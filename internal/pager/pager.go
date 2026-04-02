@@ -3,20 +3,29 @@ package pager
 import (
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	"golang.org/x/term"
 )
 
+// RenderFunc is called to re-render content. It receives the new terminal width
+// and should return the rendered content string.
+type RenderFunc func(termWidth int) string
+
 // Pager manages interactive paged display of content.
 type Pager struct {
-	lines      []string // content lines
-	offset     int      // current scroll position (top visible line index)
-	height     int      // visible lines (terminal height minus status bar)
-	width      int      // terminal width
-	searchTerm string   // current search term
-	matches    []int    // line indices matching search
-	matchIdx   int      // current match index
+	lines      []string   // content lines
+	offset     int        // current scroll position (top visible line index)
+	height     int        // visible lines (terminal height minus status bar)
+	width      int        // terminal width
+	searchTerm string     // current search term
+	matches    []int      // line indices matching search
+	matchIdx   int        // current match index
+	renderFunc RenderFunc // callback for re-rendering (nil = no re-render)
+	filePath   string     // file to watch (empty = no watching)
 }
 
 // ShouldPage determines whether pager mode should be used.
@@ -40,6 +49,34 @@ func New(content string, termWidth, termHeight int) *Pager {
 		width:    termWidth,
 		matches:  nil,
 		matchIdx: -1,
+	}
+}
+
+// SetRenderFunc sets the callback used to re-render content on resize or file change.
+func (p *Pager) SetRenderFunc(fn RenderFunc) {
+	p.renderFunc = fn
+}
+
+// SetFilePath sets the file path to watch for changes.
+func (p *Pager) SetFilePath(path string) {
+	p.filePath = path
+}
+
+// UpdateContent replaces the pager content and dimensions, clamping the scroll offset.
+func (p *Pager) UpdateContent(content string, newWidth, newHeight int) {
+	p.lines = strings.Split(content, "\n")
+	p.width = newWidth
+	p.height = newHeight - 1
+	if p.height < 1 {
+		p.height = 1
+	}
+	// Clamp offset
+	maxOffset := len(p.lines) - p.height
+	if maxOffset < 0 {
+		maxOffset = 0
+	}
+	if p.offset > maxOffset {
+		p.offset = maxOffset
 	}
 }
 
@@ -126,6 +163,13 @@ func (p *Pager) render(fd int) {
 	os.Stdout.WriteString(buf.String())
 }
 
+// keyEvent represents a single key read from stdin.
+type keyEvent struct {
+	buf [3]byte
+	n   int
+	err error
+}
+
 // Run starts the pager main loop with alternate screen buffer and raw mode.
 // On raw mode failure, it falls back to printing content directly.
 func (p *Pager) Run() error {
@@ -150,56 +194,158 @@ func (p *Pager) Run() error {
 
 	p.render(fd)
 
-	buf := make([]byte, 3)
-	for {
-		n, err := os.Stdin.Read(buf)
-		if err != nil || n == 0 {
-			break
+	// Stdin reader goroutine
+	keyCh := make(chan keyEvent, 1)
+	go func() {
+		for {
+			var ev keyEvent
+			ev.n, ev.err = os.Stdin.Read(ev.buf[:])
+			keyCh <- ev
 		}
+	}()
 
-		key := buf[0]
+	// SIGWINCH handler
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGWINCH)
+	defer signal.Stop(sigCh)
 
-		// Check for escape sequences (arrow keys, page up/down)
-		if n >= 3 && buf[0] == 0x1b && buf[1] == '[' {
-			switch buf[2] {
-			case 'A': // Up arrow
-				p.ScrollUp(1)
-			case 'B': // Down arrow
-				p.ScrollDown(1)
-			case '5': // Page Up (ESC [ 5 ~)
-				p.ScrollUp(p.height)
-			case '6': // Page Down (ESC [ 6 ~)
-				p.ScrollDown(p.height)
+	// File watcher
+	doneCh := make(chan struct{})
+	defer close(doneCh)
+
+	var fileChangeCh <-chan struct{}
+	if p.filePath != "" {
+		ch := make(chan struct{}, 1)
+		fileChangeCh = ch
+		go p.watchFile(ch, doneCh)
+	}
+
+	for {
+		select {
+		case ev := <-keyCh:
+			if ev.err != nil || ev.n == 0 {
+				return nil
+			}
+			if p.handleKeyEvent(ev, fd, oldState) {
+				return nil // quit
 			}
 			p.render(fd)
-			continue
-		}
 
-		switch key {
-		case 'q':
-			return nil
-		case 'j':
-			p.ScrollDown(1)
-		case 'k':
-			p.ScrollUp(1)
-		case ' ': // space = page down
-			p.ScrollDown(p.height)
-		case 'b': // page up
-			p.ScrollUp(p.height)
-		case 'g':
-			p.GoToTop()
-		case 'G':
-			p.GoToBottom()
-		case 'n':
-			p.NextMatch()
-		case 'N':
-			p.PrevMatch()
-		case '/':
-			p.handleSearch(fd, oldState)
+		case <-sigCh:
+			p.handleResize(fd)
+
+		case <-fileChangeCh:
+			p.handleFileChange(fd)
 		}
-		p.render(fd)
 	}
-	return nil
+}
+
+// handleKeyEvent processes a single key event. Returns true if the pager should quit.
+func (p *Pager) handleKeyEvent(ev keyEvent, fd int, oldState *term.State) bool {
+	// Check for escape sequences (arrow keys, page up/down)
+	if ev.n >= 3 && ev.buf[0] == 0x1b && ev.buf[1] == '[' {
+		switch ev.buf[2] {
+		case 'A': // Up arrow
+			p.ScrollUp(1)
+		case 'B': // Down arrow
+			p.ScrollDown(1)
+		case '5': // Page Up (ESC [ 5 ~)
+			p.ScrollUp(p.height)
+		case '6': // Page Down (ESC [ 6 ~)
+			p.ScrollDown(p.height)
+		}
+		return false
+	}
+
+	key := ev.buf[0]
+	switch key {
+	case 'q':
+		return true
+	case 'j':
+		p.ScrollDown(1)
+	case 'k':
+		p.ScrollUp(1)
+	case ' ': // space = page down
+		p.ScrollDown(p.height)
+	case 'b': // page up
+		p.ScrollUp(p.height)
+	case 'g':
+		p.GoToTop()
+	case 'G':
+		p.GoToBottom()
+	case 'n':
+		p.NextMatch()
+	case 'N':
+		p.PrevMatch()
+	case '/':
+		p.handleSearch(fd, oldState)
+	}
+	return false
+}
+
+// handleResize handles terminal resize (SIGWINCH).
+func (p *Pager) handleResize(fd int) {
+	w, h, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		return
+	}
+	if p.renderFunc != nil {
+		content := p.renderFunc(w)
+		p.UpdateContent(content, w, h)
+	} else {
+		p.width = w
+		p.height = h - 1
+		if p.height < 1 {
+			p.height = 1
+		}
+		maxOffset := len(p.lines) - p.height
+		if maxOffset < 0 {
+			maxOffset = 0
+		}
+		if p.offset > maxOffset {
+			p.offset = maxOffset
+		}
+	}
+	p.render(fd)
+}
+
+// handleFileChange handles file change notifications.
+func (p *Pager) handleFileChange(fd int) {
+	if p.renderFunc != nil {
+		content := p.renderFunc(p.width)
+		p.UpdateContent(content, p.width, p.height+1)
+	}
+	p.render(fd)
+}
+
+// watchFile polls the file for mtime changes and sends on ch when detected.
+// It stops when doneCh is closed.
+func (p *Pager) watchFile(ch chan<- struct{}, doneCh <-chan struct{}) {
+	info, _ := os.Stat(p.filePath)
+	var lastMod time.Time
+	if info != nil {
+		lastMod = info.ModTime()
+	}
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-doneCh:
+			return
+		case <-ticker.C:
+			info, err := os.Stat(p.filePath)
+			if err != nil {
+				continue
+			}
+			if info.ModTime().After(lastMod) {
+				lastMod = info.ModTime()
+				select {
+				case ch <- struct{}{}:
+				default:
+				}
+			}
+		}
+	}
 }
 
 // handleSearch enters search mode, reads a search term, and performs search.
@@ -247,9 +393,9 @@ func (p *Pager) handleSearch(fd int, oldState *term.State) {
 		os.Stdout.WriteString(prompt.String())
 	}
 
-	term := string(searchBuf)
-	if term != "" {
-		p.Search(term)
+	searchTermStr := string(searchBuf)
+	if searchTermStr != "" {
+		p.Search(searchTermStr)
 		if len(p.matches) > 0 {
 			p.matchIdx = 0
 			p.offset = p.matches[0]
