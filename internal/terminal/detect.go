@@ -85,12 +85,12 @@ func DetectImageProtocol() ImageProtocol {
 	switch termProgram {
 	case "WezTerm", "iTerm.app", "mintty":
 		return ImageITerm2
-	case "kitty":
+	case "kitty", "ghostty":
 		return ImageKitty
 	}
 
 	termEnv := os.Getenv("TERM")
-	if strings.Contains(termEnv, "kitty") {
+	if strings.Contains(termEnv, "kitty") || strings.Contains(termEnv, "ghostty") {
 		return ImageKitty
 	}
 

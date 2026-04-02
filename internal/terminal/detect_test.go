@@ -158,6 +158,22 @@ func TestDetectImageProtocol_KittyTerm(t *testing.T) {
 	}
 }
 
+func TestDetectImageProtocol_GhosttyTermProgram(t *testing.T) {
+	unsetEnv(t, "TERM")
+	setEnv(t, "TERM_PROGRAM", "ghostty")
+	if got := DetectImageProtocol(); got != ImageKitty {
+		t.Errorf("expected ImageKitty for TERM_PROGRAM=ghostty, got %d", got)
+	}
+}
+
+func TestDetectImageProtocol_GhosttyTerm(t *testing.T) {
+	unsetEnv(t, "TERM_PROGRAM")
+	setEnv(t, "TERM", "xterm-ghostty")
+	if got := DetectImageProtocol(); got != ImageKitty {
+		t.Errorf("expected ImageKitty for TERM=xterm-ghostty, got %d", got)
+	}
+}
+
 func TestDetectImageProtocol_None(t *testing.T) {
 	unsetEnv(t, "TERM_PROGRAM")
 	setEnv(t, "TERM", "xterm-256color")

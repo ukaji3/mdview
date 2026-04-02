@@ -87,7 +87,8 @@ func CheckImageSupport() {
 		fmt.Println("  Images will be shown as [画像: alt text] fallback.")
 		fmt.Println()
 		fmt.Println("Supported terminals for image display:")
-		fmt.Println("  - Kitty (kitty)")
+		fmt.Println("  - Kitty")
+		fmt.Println("  - Ghostty")
 		fmt.Println("  - WezTerm")
 		fmt.Println("  - iTerm2")
 		fmt.Println("  - mintty")
@@ -108,15 +109,15 @@ func boolStatus(ok bool) string {
 // Query: \x1b_Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA\x1b\\
 // Expected response contains: \x1b_G
 func probeKitty() bool {
-	// Also check env first
 	if os.Getenv("KITTY_WINDOW_ID") != "" {
 		return true
 	}
 	termProg := os.Getenv("TERM_PROGRAM")
-	if termProg == "kitty" {
+	if termProg == "kitty" || termProg == "ghostty" {
 		return true
 	}
-	if strings.Contains(os.Getenv("TERM"), "kitty") {
+	termEnv := os.Getenv("TERM")
+	if strings.Contains(termEnv, "kitty") || strings.Contains(termEnv, "ghostty") {
 		return true
 	}
 
