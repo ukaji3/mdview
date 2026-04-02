@@ -116,6 +116,56 @@ func TestDetectCapabilities_ReturnsNonNil(t *testing.T) {
 	}
 }
 
+// --- DetectImageProtocol tests ---
+
+func TestDetectImageProtocol_iTerm(t *testing.T) {
+	unsetEnv(t, "TERM")
+	setEnv(t, "TERM_PROGRAM", "iTerm.app")
+	if got := DetectImageProtocol(); got != ImageITerm2 {
+		t.Errorf("expected ImageITerm2 for TERM_PROGRAM=iTerm.app, got %d", got)
+	}
+}
+
+func TestDetectImageProtocol_WezTerm(t *testing.T) {
+	unsetEnv(t, "TERM")
+	setEnv(t, "TERM_PROGRAM", "WezTerm")
+	if got := DetectImageProtocol(); got != ImageITerm2 {
+		t.Errorf("expected ImageITerm2 for TERM_PROGRAM=WezTerm, got %d", got)
+	}
+}
+
+func TestDetectImageProtocol_Mintty(t *testing.T) {
+	unsetEnv(t, "TERM")
+	setEnv(t, "TERM_PROGRAM", "mintty")
+	if got := DetectImageProtocol(); got != ImageITerm2 {
+		t.Errorf("expected ImageITerm2 for TERM_PROGRAM=mintty, got %d", got)
+	}
+}
+
+func TestDetectImageProtocol_KittyTermProgram(t *testing.T) {
+	unsetEnv(t, "TERM")
+	setEnv(t, "TERM_PROGRAM", "kitty")
+	if got := DetectImageProtocol(); got != ImageKitty {
+		t.Errorf("expected ImageKitty for TERM_PROGRAM=kitty, got %d", got)
+	}
+}
+
+func TestDetectImageProtocol_KittyTerm(t *testing.T) {
+	unsetEnv(t, "TERM_PROGRAM")
+	setEnv(t, "TERM", "xterm-kitty")
+	if got := DetectImageProtocol(); got != ImageKitty {
+		t.Errorf("expected ImageKitty for TERM=xterm-kitty, got %d", got)
+	}
+}
+
+func TestDetectImageProtocol_None(t *testing.T) {
+	unsetEnv(t, "TERM_PROGRAM")
+	setEnv(t, "TERM", "xterm-256color")
+	if got := DetectImageProtocol(); got != ImageNone {
+		t.Errorf("expected ImageNone for generic terminal, got %d", got)
+	}
+}
+
 func TestDefaultTheme_NonEmpty(t *testing.T) {
 	th := DefaultTheme()
 	if th.H1Color == "" {

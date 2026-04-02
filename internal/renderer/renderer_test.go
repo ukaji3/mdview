@@ -10,11 +10,11 @@ import (
 
 func defaultCtx() *RenderContext {
 	return &RenderContext{
-		TermWidth:    80,
-		ColorMode:    terminal.ColorTrue,
-		SixelSupport: false,
-		Theme:        terminal.DefaultTheme(),
-		IsTTY:        true,
+		TermWidth:     80,
+		ColorMode:     terminal.ColorTrue,
+		ImageProtocol: terminal.ImageNone,
+		Theme:         terminal.DefaultTheme(),
+		IsTTY:         true,
 	}
 }
 
@@ -402,11 +402,11 @@ func TestRenderCodeSpanWithNilTheme(t *testing.T) {
 	source := []byte("Use `code` here.")
 	node := parser.Parse(source)
 	ctx := &RenderContext{
-		TermWidth:    80,
-		ColorMode:    terminal.ColorTrue,
-		SixelSupport: false,
-		Theme:        nil,
-		IsTTY:        true,
+		TermWidth:     80,
+		ColorMode:     terminal.ColorTrue,
+		ImageProtocol: terminal.ImageNone,
+		Theme:         nil,
+		IsTTY:         true,
 	}
 	result := Render(node, source, ctx)
 	if !strings.Contains(result, "code") {
@@ -416,11 +416,11 @@ func TestRenderCodeSpanWithNilTheme(t *testing.T) {
 
 func TestRenderContextFields(t *testing.T) {
 	ctx := &RenderContext{
-		TermWidth:    120,
-		ColorMode:    terminal.Color256,
-		SixelSupport: true,
-		Theme:        terminal.DefaultTheme(),
-		IsTTY:        false,
+		TermWidth:     120,
+		ColorMode:     terminal.Color256,
+		ImageProtocol: terminal.ImageSixel,
+		Theme:         terminal.DefaultTheme(),
+		IsTTY:         false,
 	}
 	if ctx.TermWidth != 120 {
 		t.Errorf("expected TermWidth 120, got %d", ctx.TermWidth)
@@ -428,8 +428,8 @@ func TestRenderContextFields(t *testing.T) {
 	if ctx.ColorMode != terminal.Color256 {
 		t.Errorf("expected Color256, got %d", ctx.ColorMode)
 	}
-	if !ctx.SixelSupport {
-		t.Error("expected SixelSupport true")
+	if ctx.ImageProtocol != terminal.ImageSixel {
+		t.Error("expected ImageProtocol ImageSixel")
 	}
 	if ctx.IsTTY {
 		t.Error("expected IsTTY false")

@@ -26,7 +26,7 @@ func TestProperty11_HorizontalRuleTerminalWidth(t *testing.T) {
 		ctx := &RenderContext{
 			TermWidth:    termWidth,
 			ColorMode:    terminal.ColorTrue,
-			SixelSupport: false,
+			ImageProtocol: terminal.ImageNone,
 			Theme:        theme,
 			IsTTY:        true,
 		}
@@ -72,7 +72,7 @@ func TestProperty12_LinkRenderingFormat(t *testing.T) {
 		ctx := &RenderContext{
 			TermWidth:    80,
 			ColorMode:    terminal.ColorTrue,
-			SixelSupport: false,
+			ImageProtocol: terminal.ImageNone,
 			Theme:        theme,
 			IsTTY:        true,
 		}
@@ -114,7 +114,7 @@ func TestHorizontalRule_Basic(t *testing.T) {
 	ctx := &RenderContext{
 		TermWidth:    80,
 		ColorMode:    terminal.ColorTrue,
-		SixelSupport: false,
+		ImageProtocol: terminal.ImageNone,
 		Theme:        theme,
 		IsTTY:        true,
 	}
@@ -135,7 +135,7 @@ func TestLink_Basic(t *testing.T) {
 	ctx := &RenderContext{
 		TermWidth:    80,
 		ColorMode:    terminal.ColorTrue,
-		SixelSupport: false,
+		ImageProtocol: terminal.ImageNone,
 		Theme:        theme,
 		IsTTY:        true,
 	}

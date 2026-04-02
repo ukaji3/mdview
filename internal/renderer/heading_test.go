@@ -30,7 +30,7 @@ func TestProperty2_HeadingLevelANSIDecoration(t *testing.T) {
 		ctx := &RenderContext{
 			TermWidth:    80,
 			ColorMode:    terminal.ColorTrue,
-			SixelSupport: false,
+			ImageProtocol: terminal.ImageNone,
 			Theme:        theme,
 			IsTTY:        true,
 		}

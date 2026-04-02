@@ -48,11 +48,11 @@ func TestProperty21_MermaidDetection(t *testing.T) {
 		source := []byte(markdown)
 		node := parser.Parse(source)
 		ctx := &RenderContext{
-			TermWidth:    80,
-			ColorMode:    terminal.ColorTrue,
-			SixelSupport: false,
-			Theme:        terminal.DefaultTheme(),
-			IsTTY:        true,
+			TermWidth:     80,
+			ColorMode:     terminal.ColorTrue,
+			ImageProtocol: terminal.ImageNone,
+			Theme:         terminal.DefaultTheme(),
+			IsTTY:         true,
 		}
 		rendered := Render(node, source, ctx)
 
@@ -221,11 +221,11 @@ func TestMermaidMmdcNotFound(t *testing.T) {
 	defer os.Setenv("PATH", origPath)
 
 	ctx := &RenderContext{
-		TermWidth:    80,
-		ColorMode:    terminal.ColorTrue,
-		SixelSupport: false,
-		Theme:        terminal.DefaultTheme(),
-		IsTTY:        true,
+		TermWidth:     80,
+		ColorMode:     terminal.ColorTrue,
+		ImageProtocol: terminal.ImageNone,
+		Theme:         terminal.DefaultTheme(),
+		IsTTY:         true,
 	}
 
 	result := RenderMermaid("graph TD\n    A-->B", "default", ctx)
@@ -242,11 +242,11 @@ func TestMermaidMmdcNotFound(t *testing.T) {
 // Unit test: temp file error message format
 func TestMermaidTempFileError(t *testing.T) {
 	ctx := &RenderContext{
-		TermWidth:    80,
-		ColorMode:    terminal.ColorTrue,
-		SixelSupport: false,
-		Theme:        terminal.DefaultTheme(),
-		IsTTY:        true,
+		TermWidth:     80,
+		ColorMode:     terminal.ColorTrue,
+		ImageProtocol: terminal.ImageNone,
+		Theme:         terminal.DefaultTheme(),
+		IsTTY:         true,
 	}
 
 	// Test CleanupTempFiles with non-existent files (should not panic)

@@ -4,13 +4,16 @@ import (
 	"image"
 	"strings"
 
+	"github.com/user/mdrender/internal/iterm2"
+	"github.com/user/mdrender/internal/kitty"
 	"github.com/user/mdrender/internal/sixel"
+	"github.com/user/mdrender/internal/terminal"
 	"github.com/yuin/goldmark/ast"
 )
 
 // renderImage renders an image node.
-// When SixelSupport is true: encodes the image as Sixel and appends an alt text caption.
-// When SixelSupport is false: outputs "[画像: altテキスト]" as fallback.
+// When ImageProtocol is set: encodes the image using the appropriate protocol and appends an alt text caption.
+// When ImageProtocol is ImageNone: outputs "[画像: altテキスト]" as fallback.
 // Error cases produce specific error messages and continue rendering.
 func renderImage(buf *strings.Builder, n *ast.Image, entering bool, source []byte, ctx *RenderContext) (ast.WalkStatus, error) {
 	if !entering {
@@ -20,13 +23,13 @@ func renderImage(buf *strings.Builder, n *ast.Image, entering bool, source []byt
 	altText := string(n.Text(source))
 	dest := string(n.Destination)
 
-	// Fallback mode: no Sixel support
-	if !ctx.SixelSupport {
+	// Fallback mode: no image protocol support
+	if ctx.ImageProtocol == terminal.ImageNone {
 		renderImageFallback(buf, altText, ctx)
 		return ast.WalkSkipChildren, nil
 	}
 
-	// Sixel mode: try to load and encode the image
+	// Image mode: try to load and encode the image
 	img, loadErr := loadImage(dest)
 	if loadErr != nil {
 		renderImageError(buf, loadErr, altText, dest, ctx)
@@ -39,13 +42,13 @@ func renderImage(buf *strings.Builder, n *ast.Image, entering bool, source []byt
 		maxWidth = 1
 	}
 
-	encoded, err := sixel.EncodeImage(img, maxWidth)
+	encoded, err := encodeImageByProtocol(img, maxWidth, ctx.ImageProtocol)
 	if err != nil {
 		renderImageErrorGeneric(buf, altText, ctx)
 		return ast.WalkSkipChildren, nil
 	}
 
-	// Output Sixel data
+	// Output encoded image data
 	buf.WriteString(encoded)
 	buf.WriteByte('\n')
 
@@ -53,6 +56,20 @@ func renderImage(buf *strings.Builder, n *ast.Image, entering bool, source []byt
 	renderImageCaption(buf, altText, ctx)
 
 	return ast.WalkSkipChildren, nil
+}
+
+// encodeImageByProtocol dispatches image encoding to the appropriate protocol encoder.
+func encodeImageByProtocol(img image.Image, maxWidth int, proto terminal.ImageProtocol) (string, error) {
+	switch proto {
+	case terminal.ImageSixel:
+		return sixel.EncodeImage(img, maxWidth)
+	case terminal.ImageKitty:
+		return kitty.EncodeImage(img, maxWidth)
+	case terminal.ImageITerm2:
+		return iterm2.EncodeImage(img, maxWidth)
+	default:
+		return sixel.EncodeImage(img, maxWidth)
+	}
 }
 
 // renderImageFallback outputs the image in plain text fallback format.
@@ -68,7 +85,7 @@ func renderImageFallback(buf *strings.Builder, altText string, ctx *RenderContex
 	}
 }
 
-// renderImageCaption outputs the alt text as a caption below the Sixel image.
+// renderImageCaption outputs the alt text as a caption below the image.
 func renderImageCaption(buf *strings.Builder, altText string, ctx *RenderContext) {
 	if altText == "" {
 		return

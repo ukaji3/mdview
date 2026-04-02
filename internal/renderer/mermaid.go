@@ -117,8 +117,8 @@ func RenderMermaid(code, theme string, ctx *RenderContext) string {
 	}
 
 	// Success: try to display the PNG
-	if ctx.SixelSupport && ctx.ColorMode != terminal.ColorNone {
-		// Load PNG and encode to Sixel
+	if ctx.ImageProtocol != terminal.ImageNone && ctx.ColorMode != terminal.ColorNone {
+		// Load PNG and encode using the detected image protocol
 		img, err := sixel.LoadLocalImage(outputPath)
 		if err == nil {
 			maxWidth := int(float64(ctx.TermWidth) * 0.8)
@@ -126,17 +126,17 @@ func RenderMermaid(code, theme string, ctx *RenderContext) string {
 				maxWidth = 1
 			}
 			img = sixel.ResizeImage(img, maxWidth)
-			sixelData, err := sixel.EncodeImage(img, maxWidth)
+			encoded, err := encodeImageByProtocol(img, maxWidth, ctx.ImageProtocol)
 			if err == nil {
-				buf.WriteString(sixelData)
+				buf.WriteString(encoded)
 				buf.WriteByte('\n')
 				return buf.String()
 			}
 		}
-		// If Sixel encoding fails, fall through to text fallback
+		// If image encoding fails, fall through to text fallback
 	}
 
-	// No Sixel support or Sixel encoding failed: text fallback
+	// No image protocol support or encoding failed: text fallback
 	// Detect diagram type from first line of code
 	diagramType := detectMermaidDiagramType(code)
 	infoMsg := fmt.Sprintf("[Mermaid図: %s]", diagramType)

@@ -52,7 +52,7 @@ func TestProperty6_UnorderedListNestLevelDisplay(t *testing.T) {
 		ctx := &RenderContext{
 			TermWidth:    80,
 			ColorMode:    terminal.ColorTrue,
-			SixelSupport: false,
+			ImageProtocol: terminal.ImageNone,
 			Theme:        theme,
 			IsTTY:        true,
 		}
@@ -125,7 +125,7 @@ func TestProperty7_OrderedListNumbering(t *testing.T) {
 		ctx := &RenderContext{
 			TermWidth:    80,
 			ColorMode:    terminal.ColorTrue,
-			SixelSupport: false,
+			ImageProtocol: terminal.ImageNone,
 			Theme:        theme,
 			IsTTY:        true,
 		}

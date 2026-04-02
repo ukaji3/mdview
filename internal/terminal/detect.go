@@ -16,13 +16,23 @@ const (
 	ColorTrue                  // TrueColor (24-bit)
 )
 
+// ImageProtocol represents the terminal image display protocol.
+type ImageProtocol int
+
+const (
+	ImageNone   ImageProtocol = iota // No image support
+	ImageSixel                       // Sixel graphics
+	ImageKitty                       // Kitty graphics protocol
+	ImageITerm2                      // iTerm2 inline images protocol
+)
+
 // Capabilities holds detected terminal capabilities.
 type Capabilities struct {
-	Width        int
-	ColorMode    ColorMode
-	SixelSupport bool
-	IsTTY        bool
-	Theme        *Theme
+	Width         int
+	ColorMode     ColorMode
+	ImageProtocol ImageProtocol
+	IsTTY         bool
+	Theme         *Theme
 }
 
 // DetectColorMode determines the color mode from environment variables.
@@ -67,6 +77,34 @@ func DetectSixel() bool {
 	return false
 }
 
+// DetectImageProtocol detects which image protocol the terminal supports.
+// It checks environment variables in priority order:
+//   - TERM_PROGRAM "WezTerm", "iTerm.app", "mintty" → ImageITerm2
+//   - TERM containing "kitty" or TERM_PROGRAM "kitty" → ImageKitty
+//   - Falls back to Sixel detection via DetectSixel
+//   - If nothing detected → ImageNone
+func DetectImageProtocol() ImageProtocol {
+	termProgram := os.Getenv("TERM_PROGRAM")
+
+	switch termProgram {
+	case "WezTerm", "iTerm.app", "mintty":
+		return ImageITerm2
+	case "kitty":
+		return ImageKitty
+	}
+
+	termEnv := os.Getenv("TERM")
+	if strings.Contains(termEnv, "kitty") {
+		return ImageKitty
+	}
+
+	if DetectSixel() {
+		return ImageSixel
+	}
+
+	return ImageNone
+}
+
 // DetectCapabilities detects all terminal capabilities and returns
 // a Capabilities struct ready for use by the renderer.
 func DetectCapabilities() *Capabilities {
@@ -77,16 +115,16 @@ func DetectCapabilities() *Capabilities {
 		mode = ColorNone
 	}
 
-	sixel := false
+	imgProto := ImageNone
 	if isTTY {
-		sixel = DetectSixel()
+		imgProto = DetectImageProtocol()
 	}
 
 	return &Capabilities{
-		Width:        DetectWidth(),
-		ColorMode:    mode,
-		SixelSupport: sixel,
-		IsTTY:        isTTY,
-		Theme:        DefaultTheme(),
+		Width:         DetectWidth(),
+		ColorMode:     mode,
+		ImageProtocol: imgProto,
+		IsTTY:         isTTY,
+		Theme:         DefaultTheme(),
 	}
 }

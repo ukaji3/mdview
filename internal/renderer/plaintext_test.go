@@ -72,11 +72,11 @@ var escapePattern = regexp.MustCompile(`\033`)
 
 func plainTextCtx() *RenderContext {
 	return &RenderContext{
-		TermWidth:    80,
-		ColorMode:    terminal.ColorNone,
-		SixelSupport: false,
-		Theme:        terminal.DefaultTheme(),
-		IsTTY:        false,
+		TermWidth:     80,
+		ColorMode:     terminal.ColorNone,
+		ImageProtocol: terminal.ImageNone,
+		Theme:         terminal.DefaultTheme(),
+		IsTTY:         false,
 	}
 }
 

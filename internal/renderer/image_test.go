@@ -59,11 +59,11 @@ func TestProperty20_SixelImageCaption(t *testing.T) {
 		node := parser.Parse(source)
 
 		ctx := &RenderContext{
-			TermWidth:    80,
-			ColorMode:    terminal.ColorTrue,
-			SixelSupport: true,
-			Theme:        terminal.DefaultTheme(),
-			IsTTY:        true,
+			TermWidth:     80,
+			ColorMode:     terminal.ColorTrue,
+			ImageProtocol: terminal.ImageSixel,
+			Theme:         terminal.DefaultTheme(),
+			IsTTY:         true,
 		}
 
 		result := Render(node, source, ctx)
@@ -120,11 +120,11 @@ func TestProperty24_ImageFallbackNoSixel(t *testing.T) {
 		node := parser.Parse(source)
 
 		ctx := &RenderContext{
-			TermWidth:    80,
-			ColorMode:    terminal.ColorTrue,
-			SixelSupport: false, // No Sixel support
-			Theme:        terminal.DefaultTheme(),
-			IsTTY:        true,
+			TermWidth:     80,
+			ColorMode:     terminal.ColorTrue,
+			ImageProtocol: terminal.ImageNone, // No image support
+			Theme:         terminal.DefaultTheme(),
+			IsTTY:         true,
 		}
 
 		result := Render(node, source, ctx)
@@ -149,11 +149,11 @@ func TestImageErrorFileNotFound(t *testing.T) {
 	node := parser.Parse(source)
 
 	ctx := &RenderContext{
-		TermWidth:    80,
-		ColorMode:    terminal.ColorTrue,
-		SixelSupport: true,
-		Theme:        terminal.DefaultTheme(),
-		IsTTY:        true,
+		TermWidth:     80,
+		ColorMode:     terminal.ColorTrue,
+		ImageProtocol: terminal.ImageSixel,
+		Theme:         terminal.DefaultTheme(),
+		IsTTY:         true,
 	}
 
 	result := Render(node, source, ctx)
@@ -169,11 +169,11 @@ func TestImageFallbackPlainText(t *testing.T) {
 	node := parser.Parse(source)
 
 	ctx := &RenderContext{
-		TermWidth:    80,
-		ColorMode:    terminal.ColorNone,
-		SixelSupport: false,
-		Theme:        terminal.DefaultTheme(),
-		IsTTY:        false,
+		TermWidth:     80,
+		ColorMode:     terminal.ColorNone,
+		ImageProtocol: terminal.ImageNone,
+		Theme:         terminal.DefaultTheme(),
+		IsTTY:         false,
 	}
 
 	result := Render(node, source, ctx)

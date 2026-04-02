@@ -35,7 +35,7 @@ func TestProperty4_CodeBlockBoxDrawingAndLineNumbers(t *testing.T) {
 		ctx := &RenderContext{
 			TermWidth:    80,
 			ColorMode:    terminal.ColorTrue,
-			SixelSupport: false,
+			ImageProtocol: terminal.ImageNone,
 			Theme:        theme,
 			IsTTY:        true,
 		}
@@ -103,7 +103,7 @@ func TestProperty5_CodeBlockLanguageLabel(t *testing.T) {
 		ctx := &RenderContext{
 			TermWidth:    80,
 			ColorMode:    terminal.ColorTrue,
-			SixelSupport: false,
+			ImageProtocol: terminal.ImageNone,
 			Theme:        theme,
 			IsTTY:        true,
 		}
@@ -154,7 +154,7 @@ func TestProperty15_CodeBlockLineTruncation(t *testing.T) {
 		ctx := &RenderContext{
 			TermWidth:    termWidth,
 			ColorMode:    terminal.ColorTrue,
-			SixelSupport: false,
+			ImageProtocol: terminal.ImageNone,
 			Theme:        theme,
 			IsTTY:        true,
 		}

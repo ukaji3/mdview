@@ -59,7 +59,7 @@ func TestProperty9_TableColumnWidthAutoAdjust(t *testing.T) {
 		ctx := &RenderContext{
 			TermWidth:    120,
 			ColorMode:    terminal.ColorTrue,
-			SixelSupport: false,
+			ImageProtocol: terminal.ImageNone,
 			Theme:        theme,
 			IsTTY:        true,
 		}
@@ -168,7 +168,7 @@ func TestProperty10_TableAlignment(t *testing.T) {
 		ctx := &RenderContext{
 			TermWidth:    120,
 			ColorMode:    terminal.ColorTrue,
-			SixelSupport: false,
+			ImageProtocol: terminal.ImageNone,
 			Theme:        theme,
 			IsTTY:        true,
 		}
@@ -271,7 +271,7 @@ func TestTable_BasicRendering(t *testing.T) {
 	ctx := &RenderContext{
 		TermWidth:    80,
 		ColorMode:    terminal.ColorTrue,
-		SixelSupport: false,
+		ImageProtocol: terminal.ImageNone,
 		Theme:        theme,
 		IsTTY:        true,
 	}
@@ -304,7 +304,7 @@ func TestTable_Alignment(t *testing.T) {
 	ctx := &RenderContext{
 		TermWidth:    80,
 		ColorMode:    terminal.ColorTrue,
-		SixelSupport: false,
+		ImageProtocol: terminal.ImageNone,
 		Theme:        theme,
 		IsTTY:        true,
 	}

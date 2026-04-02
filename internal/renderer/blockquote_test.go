@@ -32,7 +32,7 @@ func TestProperty8_BlockquoteNestLevelVerticalBars(t *testing.T) {
 		ctx := &RenderContext{
 			TermWidth:    80,
 			ColorMode:    terminal.ColorTrue,
-			SixelSupport: false,
+			ImageProtocol: terminal.ImageNone,
 			Theme:        theme,
 			IsTTY:        true,
 		}
@@ -77,7 +77,7 @@ func TestBlockquote_SingleLevel(t *testing.T) {
 	ctx := &RenderContext{
 		TermWidth:    80,
 		ColorMode:    terminal.ColorTrue,
-		SixelSupport: false,
+		ImageProtocol: terminal.ImageNone,
 		Theme:        theme,
 		IsTTY:        true,
 	}
@@ -102,7 +102,7 @@ func TestBlockquote_NestedTwoLevels(t *testing.T) {
 	ctx := &RenderContext{
 		TermWidth:    80,
 		ColorMode:    terminal.ColorTrue,
-		SixelSupport: false,
+		ImageProtocol: terminal.ImageNone,
 		Theme:        theme,
 		IsTTY:        true,
 	}
@@ -125,7 +125,7 @@ func TestBlockquote_InnerMarkdownElements(t *testing.T) {
 	ctx := &RenderContext{
 		TermWidth:    80,
 		ColorMode:    terminal.ColorTrue,
-		SixelSupport: false,
+		ImageProtocol: terminal.ImageNone,
 		Theme:        theme,
 		IsTTY:        true,
 	}

@@ -19,12 +19,12 @@ const (
 
 // RenderContext holds rendering state and terminal capabilities.
 type RenderContext struct {
-	TermWidth    int
-	ColorMode    terminal.ColorMode
-	SixelSupport bool
-	Theme        *terminal.Theme
-	IsTTY        bool
-	MermaidTheme string // Mermaid theme (default, dark, forest, neutral)
+	TermWidth     int
+	ColorMode     terminal.ColorMode
+	ImageProtocol terminal.ImageProtocol
+	Theme         *terminal.Theme
+	IsTTY         bool
+	MermaidTheme  string // Mermaid theme (default, dark, forest, neutral)
 }
 
 // Render walks the AST and produces an ANSI-decorated string for terminal output.

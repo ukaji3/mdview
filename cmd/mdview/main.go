@@ -48,12 +48,12 @@ func main() {
 
 	// 6. Build render context
 	ctx := &renderer.RenderContext{
-		TermWidth:    caps.Width,
-		ColorMode:    caps.ColorMode,
-		SixelSupport: caps.SixelSupport,
-		Theme:        caps.Theme,
-		IsTTY:        caps.IsTTY,
-		MermaidTheme: config.MermaidTheme,
+		TermWidth:     caps.Width,
+		ColorMode:     caps.ColorMode,
+		ImageProtocol: caps.ImageProtocol,
+		Theme:         caps.Theme,
+		IsTTY:         caps.IsTTY,
+		MermaidTheme:  config.MermaidTheme,
 	}
 
 	// 7. Render Markdown
