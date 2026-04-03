@@ -169,14 +169,14 @@ func processHTMLTags(html string, ctx *RenderContext) string {
 			if !isClosing {
 				buf.WriteString(Italic)
 			} else {
-				buf.WriteString(Reset)
+				buf.WriteString(ItalicOff)
 			}
 
 		case "strong", "b":
 			if !isClosing {
 				buf.WriteString(Bold)
 			} else {
-				buf.WriteString(Reset)
+				buf.WriteString(BoldOff)
 			}
 
 		case "code":
@@ -203,14 +203,14 @@ func processHTMLTags(html string, ctx *RenderContext) string {
 			if !isClosing {
 				buf.WriteString(Strikethrough)
 			} else {
-				buf.WriteString(Reset)
+				buf.WriteString(StrikethroughOff)
 			}
 
 		case "u":
 			if !isClosing {
 				buf.WriteString(Underline)
 			} else {
-				buf.WriteString(Reset)
+				buf.WriteString(UnderlineOff)
 			}
 
 		case "sub", "sup":

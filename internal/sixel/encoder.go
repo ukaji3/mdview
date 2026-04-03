@@ -8,18 +8,52 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"io"
 	"math"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
+	"time"
 )
 
+// MaxImageDimension is the maximum allowed width or height in pixels.
+// Images exceeding this in either dimension are scaled down to fit.
+const MaxImageDimension = 4096
+
 // ResizeImage resizes an image to fit within maxWidth while maintaining aspect ratio.
-// If the image width is already <= maxWidth, it is returned unchanged.
+// If either dimension exceeds MaxImageDimension, the image is scaled down first.
+// If the image width is already <= maxWidth (after capping), it is returned unchanged.
 func ResizeImage(img image.Image, maxWidth int) image.Image {
 	bounds := img.Bounds()
 	origW := bounds.Dx()
 	origH := bounds.Dy()
+
+	// Cap to MaxImageDimension if either dimension exceeds it
+	if origW > MaxImageDimension || origH > MaxImageDimension {
+		scale := math.Min(float64(MaxImageDimension)/float64(origW), float64(MaxImageDimension)/float64(origH))
+		newW := int(math.Round(float64(origW) * scale))
+		newH := int(math.Round(float64(origH) * scale))
+		if newW < 1 {
+			newW = 1
+		}
+		if newH < 1 {
+			newH = 1
+		}
+		capped := image.NewRGBA(image.Rect(0, 0, newW, newH))
+		for y := 0; y < newH; y++ {
+			srcY := y * origH / newH
+			for x := 0; x < newW; x++ {
+				srcX := x * origW / newW
+				capped.Set(x, y, img.At(bounds.Min.X+srcX, bounds.Min.Y+srcY))
+			}
+		}
+		img = capped
+		bounds = img.Bounds()
+		origW = bounds.Dx()
+		origH = bounds.Dy()
+	}
 
 	if origW <= maxWidth {
 		return img
@@ -197,10 +231,68 @@ func LoadLocalImage(path string) (image.Image, error) {
 	return img, nil
 }
 
+// maxDownloadSize is the maximum allowed image download size (50 MB).
+const maxDownloadSize = 50 * 1024 * 1024
+
+// isPrivateIP returns true if the given IP is in a private, loopback, or
+// link-local range that should not be accessed by remote image loading.
+func isPrivateIP(ip net.IP) bool {
+	privateRanges := []string{
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+		"127.0.0.0/8",
+		"169.254.0.0/16",
+		"::1/128",
+		"fc00::/7",
+	}
+	for _, cidr := range privateRanges {
+		_, network, err := net.ParseCIDR(cidr)
+		if err != nil {
+			continue
+		}
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// validateRemoteURL checks that the URL uses HTTPS and does not resolve to a
+// private/loopback IP address (SSRF protection).
+func validateRemoteURL(rawURL string) error {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+	if parsed.Scheme != "https" && parsed.Scheme != "http" {
+		return fmt.Errorf("unsupported URL scheme: %s", parsed.Scheme)
+	}
+	hostname := parsed.Hostname()
+	ips, err := net.LookupHost(hostname)
+	if err != nil {
+		return fmt.Errorf("DNS lookup failed for %s: %w", hostname, err)
+	}
+	for _, ipStr := range ips {
+		ip := net.ParseIP(ipStr)
+		if ip != nil && isPrivateIP(ip) {
+			return fmt.Errorf("access to private IP address %s is not allowed", ipStr)
+		}
+	}
+	return nil
+}
+
 // LoadRemoteImage downloads an image from an HTTP/HTTPS URL and decodes it.
 // Supports PNG, JPEG, and GIF formats.
-func LoadRemoteImage(url string) (image.Image, error) {
-	resp, err := http.Get(url)
+// Applies a 30-second timeout, a 50 MB download size limit, and rejects URLs
+// that resolve to private/loopback IP addresses.
+func LoadRemoteImage(rawURL string) (image.Image, error) {
+	if err := validateRemoteURL(rawURL); err != nil {
+		return nil, fmt.Errorf("URL validation failed: %w", err)
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Get(rawURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download image: %w", err)
 	}
@@ -210,7 +302,8 @@ func LoadRemoteImage(url string) (image.Image, error) {
 		return nil, fmt.Errorf("failed to download image: HTTP %d", resp.StatusCode)
 	}
 
-	img, _, err := image.Decode(resp.Body)
+	limited := io.LimitReader(resp.Body, maxDownloadSize)
+	img, _, err := image.Decode(limited)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode image: %w", err)
 	}

@@ -17,7 +17,11 @@ func renderEmphasis(buf *strings.Builder, n *ast.Emphasis, entering bool) (ast.W
 			buf.WriteString(Italic)
 		}
 	} else {
-		buf.WriteString(Reset)
+		if n.Level == 2 {
+			buf.WriteString(BoldOff)
+		} else {
+			buf.WriteString(ItalicOff)
+		}
 	}
 	return ast.WalkContinue, nil
 }
@@ -46,7 +50,7 @@ func renderStrikethroughText(buf *strings.Builder, n *east.Strikethrough, enteri
 	if entering {
 		buf.WriteString(Strikethrough)
 	} else {
-		buf.WriteString(Reset)
+		buf.WriteString(StrikethroughOff)
 	}
 	return ast.WalkContinue, nil
 }

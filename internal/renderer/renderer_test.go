@@ -393,8 +393,8 @@ func TestRenderStrikethroughWithReset(t *testing.T) {
 	if !strings.Contains(result, Strikethrough) {
 		t.Errorf("expected Strikethrough ANSI code, got %q", result)
 	}
-	if !strings.Contains(result, Reset) {
-		t.Errorf("expected Reset ANSI code after strikethrough, got %q", result)
+	if !strings.Contains(result, StrikethroughOff) {
+		t.Errorf("expected StrikethroughOff ANSI code after strikethrough, got %q", result)
 	}
 }
 

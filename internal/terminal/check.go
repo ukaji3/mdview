@@ -162,7 +162,12 @@ func probeEscape(query, expect string) bool {
 	// Send query
 	os.Stdout.WriteString(query)
 
-	// Read response with timeout
+	// Read response with timeout.
+	// NOTE: The reader goroutine may leak if the terminal does not respond before
+	// the timeout. os.Stdin.Read on a terminal cannot be reliably interrupted
+	// across platforms. This is acceptable because probeEscape is only called
+	// during --check-image, which exits immediately after. The goroutine does not
+	// access any shared state after sending on the done channel.
 	reader := bufio.NewReader(os.Stdin)
 	done := make(chan string, 1)
 	go func() {

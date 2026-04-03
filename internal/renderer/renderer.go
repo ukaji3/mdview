@@ -15,6 +15,12 @@ const (
 	Italic        = "\033[3m"
 	Underline     = "\033[4m"
 	Strikethrough = "\033[9m"
+
+	// Specific disable codes (avoid full Reset to preserve nested styles).
+	BoldOff          = "\033[22m"
+	ItalicOff        = "\033[23m"
+	UnderlineOff     = "\033[24m"
+	StrikethroughOff = "\033[29m"
 )
 
 // RenderContext holds rendering state and terminal capabilities.

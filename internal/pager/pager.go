@@ -213,7 +213,12 @@ func (p *Pager) Run() error {
 
 	p.render(fd)
 
-	// Stdin reader goroutine
+	// Stdin reader goroutine.
+	// NOTE: This goroutine intentionally leaks when Run() returns. os.Stdin.Read
+	// blocks on terminal input and cannot be reliably interrupted across platforms.
+	// This is acceptable because the process exits immediately after Run() returns
+	// in main(), so the goroutine is cleaned up by the OS. The goroutine does not
+	// access any Pager state — it only sends events on keyCh.
 	keyCh := make(chan keyEvent, 1)
 	go func() {
 		for {

@@ -118,8 +118,8 @@ func TestHTMLBlock_EmphasisItalic(t *testing.T) {
 	if !strings.Contains(result, Italic) {
 		t.Errorf("expected Italic ANSI code, got %q", result)
 	}
-	if !strings.Contains(result, Reset) {
-		t.Errorf("expected Reset ANSI code, got %q", result)
+	if !strings.Contains(result, ItalicOff) {
+		t.Errorf("expected ItalicOff ANSI code, got %q", result)
 	}
 }
 
