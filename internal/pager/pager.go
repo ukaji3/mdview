@@ -336,14 +336,22 @@ func (p *Pager) handleResize(fd int) {
 // handleFileChange handles file change notifications.
 func (p *Pager) handleFileChange(fd int) {
 	if p.renderFunc != nil {
-		content := p.renderFunc(p.width)
-		p.UpdateContent(content, p.width, p.height+1)
+		w, h, err := term.GetSize(int(os.Stdout.Fd()))
+		if err != nil {
+			w = p.width
+			h = p.height + 1
+		}
+		content := p.renderFunc(w)
+		p.UpdateContent(content, w, h)
 	}
 	p.render(fd)
 }
 
 // watchFile polls the file for mtime changes and sends on ch when detected.
 // It stops when doneCh is closed.
+//
+// TODO: ポーリング方式(500ms間隔)ではなく、fsnotifyを使用した
+// イベント駆動方式の方が効率的です。
 func (p *Pager) watchFile(ch chan<- struct{}, doneCh <-chan struct{}) {
 	info, _ := os.Stat(p.filePath)
 	var lastMod time.Time

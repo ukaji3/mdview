@@ -61,6 +61,7 @@ func main() {
 		Theme:         caps.Theme,
 		IsTTY:         caps.IsTTY,
 		MermaidTheme:  config.MermaidTheme,
+		NoMermaid:     config.NoMermaid,
 	}
 
 	// 7. Render Markdown
@@ -79,12 +80,19 @@ func main() {
 	// 10. Pager decision
 	if pager.ShouldPage(lineCount, termHeight, caps.IsTTY, config.NoPager) {
 		// Create render function closure for re-rendering on resize/file change
+		capturedSource := source // capture for closure when reading from stdin
 		renderFunc := func(termWidth int) string {
-			source, err := cli.ReadInput(config)
-			if err != nil {
-				return fmt.Sprintf("Error reading file: %v", err)
+			var src []byte
+			if config.FilePath != "" {
+				var err error
+				src, err = cli.ReadInput(config)
+				if err != nil {
+					return fmt.Sprintf("Error reading file: %v", err)
+				}
+			} else {
+				src = capturedSource
 			}
-			ast := parser.Parse(source)
+			ast := parser.Parse(src)
 			rctx := &renderer.RenderContext{
 				TermWidth:     termWidth,
 				CellHeight:    caps.CellHeight,
@@ -93,8 +101,9 @@ func main() {
 				Theme:         caps.Theme,
 				IsTTY:         caps.IsTTY,
 				MermaidTheme:  config.MermaidTheme,
+				NoMermaid:     config.NoMermaid,
 			}
-			return renderer.Render(ast, source, rctx)
+			return renderer.Render(ast, src, rctx)
 		}
 
 		p := pager.New(output, caps.Width, termHeight)

@@ -4,31 +4,32 @@ import (
 	"regexp"
 )
 
-// ansiEscapeRe matches ANSI CSI sequences (e.g., \033[0m, \033[38;2;r;g;bm)
-// and OSC sequences (e.g., \033]...\033\\).
-var ansiEscapeRe = regexp.MustCompile(`\033\[[0-9;]*[a-zA-Z]`)
+// TODO: 5つの正規表現を順次適用しているため非効率です。
+// 単一パスのステートマシンによる実装がより効率的ですが、
+// 現時点では正確性を優先しています。
 
-// sixelDCSRe matches Sixel DCS sequences: \033P ... \033\\
-// The Sixel data can be very large, so we use a non-greedy match.
-var sixelDCSRe = regexp.MustCompile(`\033P[^\033]*\033\\`)
-
-// otherEscapeRe matches any remaining escape sequences that start with \033
-// followed by a single character (e.g., \033(B for character set selection).
-var otherEscapeRe = regexp.MustCompile(`\033[^\[\]P][^\033]*`)
+var (
+	csiRe       = regexp.MustCompile(`\033\[[0-9;]*[a-zA-Z]`)
+	oscRe       = regexp.MustCompile(`\033\][^\x07]*(?:\x07|\033\\)`)
+	dcsRe       = regexp.MustCompile(`\033P[^\033]*\033\\`)
+	apcRe       = regexp.MustCompile(`\033_[^\033]*\033\\`)
+	simpleEscRe = regexp.MustCompile(`\033[^\[\]P_]`)
+)
 
 // StripANSI removes all ANSI escape sequences from the given string.
 // This includes:
 //   - CSI sequences (\033[...m, \033[...H, etc.)
-//   - Sixel DCS sequences (\033P...\033\\)
-//   - Other escape sequences
+//   - OSC sequences (\033]...\x07 or \033]...\033\\)
+//   - DCS sequences (\033P...\033\\)
+//   - APC sequences (\033_...\033\\)
+//   - Simple escape sequences (\033X)
 //
 // Used when ColorMode is ColorNone (NO_COLOR set or pipe output).
 func StripANSI(s string) string {
-	// First remove Sixel DCS sequences (they can be very large)
-	s = sixelDCSRe.ReplaceAllString(s, "")
-	// Then remove ANSI CSI sequences
-	s = ansiEscapeRe.ReplaceAllString(s, "")
-	// Remove any remaining escape sequences
-	s = otherEscapeRe.ReplaceAllString(s, "")
+	s = dcsRe.ReplaceAllString(s, "")
+	s = apcRe.ReplaceAllString(s, "")
+	s = oscRe.ReplaceAllString(s, "")
+	s = csiRe.ReplaceAllString(s, "")
+	s = simpleEscRe.ReplaceAllString(s, "")
 	return s
 }

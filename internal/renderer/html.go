@@ -102,9 +102,9 @@ func convertHTML(html string, ctx *RenderContext, inline bool) string {
 func processHTMLTags(html string, ctx *RenderContext) string {
 	var buf strings.Builder
 	lastIndex := 0
-	inDetails := false
 	inSummary := false
 	var summaryBuf strings.Builder
+	var hrefStack []string // stack of href URLs for nested <a> tags
 
 	matches := htmlTagRe.FindAllStringSubmatchIndex(html, -1)
 	for _, loc := range matches {
@@ -118,7 +118,6 @@ func processHTMLTags(html string, ctx *RenderContext) string {
 			}
 		}
 
-		fullMatch := html[loc[0]:loc[1]]
 		isClosing := html[loc[2]:loc[3]] == "/"
 		tagName := strings.ToLower(html[loc[4]:loc[5]])
 		attrs := ""
@@ -136,10 +135,7 @@ func processHTMLTags(html string, ctx *RenderContext) string {
 			}
 
 		case "details":
-			if !isClosing {
-				inDetails = true
-			} else {
-				inDetails = false
+			if isClosing {
 				buf.WriteByte('\n')
 			}
 
@@ -157,12 +153,22 @@ func processHTMLTags(html string, ctx *RenderContext) string {
 		case "a":
 			if !isClosing {
 				href := extractAttr(attrs, "href")
+				hrefStack = append(hrefStack, href)
 				if href != "" {
 					buf.WriteString(linkOpen(ctx))
 				}
 			} else {
 				buf.WriteString(Reset)
-				// We don't have the href here easily, so just close the styling.
+				// Pop href from stack and output URL
+				if len(hrefStack) > 0 {
+					href := hrefStack[len(hrefStack)-1]
+					hrefStack = hrefStack[:len(hrefStack)-1]
+					if href != "" {
+						buf.WriteString(" (")
+						buf.WriteString(href)
+						buf.WriteString(")")
+					}
+				}
 			}
 
 		case "em", "i":
@@ -222,8 +228,6 @@ func processHTMLTags(html string, ctx *RenderContext) string {
 
 		default:
 			// Unknown tag: strip it, keep inner text.
-			_ = fullMatch
-			_ = inDetails
 		}
 	}
 

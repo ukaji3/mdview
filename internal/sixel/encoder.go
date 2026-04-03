@@ -3,7 +3,6 @@ package sixel
 import (
 	"fmt"
 	"image"
-	"image/color"
 	"image/draw"
 	_ "image/gif"
 	_ "image/jpeg"
@@ -115,6 +114,9 @@ func buildPalette() []paletteEntry {
 // EncodeImage converts an image.Image to a Sixel escape sequence string.
 // If the image width exceeds maxWidth, it is resized maintaining aspect ratio.
 // The Sixel format: \x1bPq <color defs> <pixel data> \x1b\\
+//
+// TODO: ピクセルデータを複数回走査しています（使用色の検出パスとエンコードパス）。
+// 単一パスでの処理が可能ですが、現時点では可読性を優先しています。
 func EncodeImage(img image.Image, maxWidth int) (string, error) {
 	if img == nil {
 		return "", fmt.Errorf("nil image")
@@ -311,8 +313,4 @@ func LoadRemoteImage(rawURL string) (image.Image, error) {
 	return img, nil
 }
 
-// colorToRGBA extracts uint8 RGBA components from a color.Color.
-func colorToRGBA(c color.Color) (r, g, b, a uint8) {
-	rr, gg, bb, aa := c.RGBA()
-	return uint8(rr >> 8), uint8(gg >> 8), uint8(bb >> 8), uint8(aa >> 8)
-}
+

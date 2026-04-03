@@ -1,8 +1,22 @@
 package pager
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+)
+
+// ansiEscRe matches ANSI escape sequences of the form \033[...m for stripping.
+var ansiEscRe = regexp.MustCompile(`\033\[[0-9;]*[a-zA-Z]`)
+
+// stripANSI removes ANSI escape sequences from a string so that
+// search matching operates on visible text only.
+func stripANSI(s string) string {
+	return ansiEscRe.ReplaceAllString(s, "")
+}
 
 // Search finds all line indices containing the given term (case-sensitive).
+// ANSI escape codes are stripped before matching so that search operates
+// on visible text only.
 // It stores the results in the pager's matches and resets matchIdx.
 func (p *Pager) Search(term string) []int {
 	p.searchTerm = term
@@ -10,7 +24,8 @@ func (p *Pager) Search(term string) []int {
 	p.matchIdx = -1
 
 	for i, line := range p.lines {
-		if strings.Contains(line, term) {
+		plain := stripANSI(line)
+		if strings.Contains(plain, term) {
 			p.matches = append(p.matches, i)
 		}
 	}

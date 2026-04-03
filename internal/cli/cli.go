@@ -16,6 +16,7 @@ type Config struct {
 	MermaidTheme string // Mermaid theme (default, dark, forest, neutral)
 	NoColor      bool   // Disable color output
 	NoPager      bool   // Disable pager mode
+	NoMermaid    bool   // Disable Mermaid diagram rendering
 	PrettyPrint  bool   // Pretty print mode (output Markdown from AST)
 	CheckImage   bool   // Check and display image protocol support
 }
@@ -30,6 +31,7 @@ Arguments:
 
 Options:
   --mermaid-theme <theme>  Mermaid diagram theme (default, dark, forest, neutral)
+  --no-mermaid               Disable Mermaid diagram rendering
   --no-pager               Disable pager mode
   --pretty-print           Output re-generated Markdown from AST
   --no-color               Disable color output
@@ -45,6 +47,7 @@ func ParseArgs(args []string) (*Config, error) {
 	cfg := &Config{}
 	fs.StringVar(&cfg.MermaidTheme, "mermaid-theme", "default", "")
 	fs.BoolVar(&cfg.NoPager, "no-pager", false, "")
+	fs.BoolVar(&cfg.NoMermaid, "no-mermaid", false, "")
 	fs.BoolVar(&cfg.PrettyPrint, "pretty-print", false, "")
 	fs.BoolVar(&cfg.NoColor, "no-color", false, "")
 	fs.BoolVar(&cfg.CheckImage, "check-image", false, "")

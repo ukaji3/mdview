@@ -1,6 +1,7 @@
 package renderer
 
 import (
+	"fmt"
 	"image"
 	"strings"
 
@@ -10,6 +11,9 @@ import (
 	"github.com/ukaji3/mdview/internal/terminal"
 	"github.com/yuin/goldmark/ast"
 )
+
+// TODO: 画像ロード/リサイズ関数がsixelパッケージに依存しています。
+// 共通の画像ユーティリティパッケージに分離するのが望ましいです。
 
 // renderImage renders an image node.
 // When ImageProtocol is set: encodes the image using the appropriate protocol and appends an alt text caption.
@@ -89,7 +93,7 @@ func encodeImageByProtocol(img image.Image, maxWidth int, proto terminal.ImagePr
 	case terminal.ImageITerm2:
 		return iterm2.EncodeImage(img, maxWidth)
 	default:
-		return sixel.EncodeImage(img, maxWidth)
+		return "", fmt.Errorf("unsupported image protocol: %d", proto)
 	}
 }
 
@@ -165,6 +169,8 @@ func renderImageErrorGeneric(buf *strings.Builder, altText string, ctx *RenderCo
 }
 
 // loadImage loads an image from a local path or remote URL.
+// NOTE: パス走査の検証は行いません。CLIツールではユーザーが入力を制御するため、
+// パストラバーサルは設計上の意図通りです。
 func loadImage(dest string) (image.Image, error) {
 	if strings.HasPrefix(dest, "http://") || strings.HasPrefix(dest, "https://") {
 		return sixel.LoadRemoteImage(dest)

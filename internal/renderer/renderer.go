@@ -1,3 +1,6 @@
+// TODO: エラーメッセージに日本語と英語が混在しています。
+// 既存テストへの影響を避けるため、現時点では変更しません。
+
 package renderer
 
 import (
@@ -32,6 +35,7 @@ type RenderContext struct {
 	Theme         *terminal.Theme
 	IsTTY         bool
 	MermaidTheme  string // Mermaid theme (default, dark, forest, neutral)
+	NoMermaid     bool   // Disable Mermaid diagram rendering
 }
 
 // Render walks the AST and produces an ANSI-decorated string for terminal output.
@@ -67,7 +71,7 @@ func Render(node ast.Node, source []byte, ctx *RenderContext) string {
 
 		case *ast.FencedCodeBlock:
 			lang := string(v.Language(source))
-			if IsMermaid(lang) && entering {
+			if IsMermaid(lang) && !ctx.NoMermaid && entering {
 				// Collect code lines
 				var codeLines []string
 				for i := 0; i < v.Lines().Len(); i++ {
@@ -161,154 +165,9 @@ func renderText(buf *strings.Builder, n *ast.Text, entering bool, source []byte)
 	return ast.WalkContinue, nil
 }
 
-// --- Stub renderers (to be replaced by heading.go, text.go, code.go, etc.) ---
-
-func renderHeadingStub(buf *strings.Builder, n *ast.Heading, entering bool, source []byte, ctx *RenderContext) (ast.WalkStatus, error) {
-	if entering {
-		buf.WriteString(Bold)
-	} else {
-		buf.WriteString(Reset)
-		buf.WriteString("\n\n")
-	}
-	return ast.WalkContinue, nil
-}
-
-func renderEmphasisStub(buf *strings.Builder, n *ast.Emphasis, entering bool) (ast.WalkStatus, error) {
-	if n.Level == 2 {
-		if entering {
-			buf.WriteString(Bold)
-		} else {
-			buf.WriteString(Reset)
-		}
-	} else {
-		if entering {
-			buf.WriteString(Italic)
-		} else {
-			buf.WriteString(Reset)
-		}
-	}
-	return ast.WalkContinue, nil
-}
-
-func renderCodeSpanStub(buf *strings.Builder, n *ast.CodeSpan, entering bool, source []byte) (ast.WalkStatus, error) {
-	if entering {
-		buf.WriteByte('`')
-		for c := n.FirstChild(); c != nil; c = c.NextSibling() {
-			if t, ok := c.(*ast.Text); ok {
-				buf.Write(t.Segment.Value(source))
-			}
-		}
-		buf.WriteByte('`')
-	}
-	return ast.WalkSkipChildren, nil
-}
-
-func renderFencedCodeBlockStub(buf *strings.Builder, n *ast.FencedCodeBlock, entering bool, source []byte, ctx *RenderContext) (ast.WalkStatus, error) {
-	if entering {
-		lang := string(n.Language(source))
-		if lang != "" {
-			buf.WriteString("[" + lang + "]\n")
-		}
-		for i := 0; i < n.Lines().Len(); i++ {
-			seg := n.Lines().At(i)
-			buf.Write(seg.Value(source))
-		}
-		buf.WriteByte('\n')
-	}
-	return ast.WalkSkipChildren, nil
-}
-
-func renderCodeBlockStub(buf *strings.Builder, n *ast.CodeBlock, entering bool, source []byte) (ast.WalkStatus, error) {
-	if entering {
-		for i := 0; i < n.Lines().Len(); i++ {
-			seg := n.Lines().At(i)
-			buf.Write(seg.Value(source))
-		}
-		buf.WriteByte('\n')
-	}
-	return ast.WalkSkipChildren, nil
-}
-
-func renderListStub(buf *strings.Builder, n *ast.List, entering bool) (ast.WalkStatus, error) {
-	if !entering {
-		buf.WriteByte('\n')
-	}
-	return ast.WalkContinue, nil
-}
-
-func renderListItemStub(buf *strings.Builder, n *ast.ListItem, entering bool, source []byte) (ast.WalkStatus, error) {
-	if entering {
-		buf.WriteString("  • ")
-	}
-	return ast.WalkContinue, nil
-}
-
-func renderBlockquoteStub(buf *strings.Builder, n *ast.Blockquote, entering bool, source []byte) (ast.WalkStatus, error) {
-	if entering {
-		buf.WriteString("│ ")
-	}
-	return ast.WalkContinue, nil
-}
-
-func renderThematicBreakStub(buf *strings.Builder, n *ast.ThematicBreak, entering bool, ctx *RenderContext) (ast.WalkStatus, error) {
-	if entering {
-		width := ctx.TermWidth
-		if width <= 0 {
-			width = 80
-		}
-		buf.WriteString(strings.Repeat("─", width))
-		buf.WriteByte('\n')
-	}
-	return ast.WalkContinue, nil
-}
-
-func renderLinkStub(buf *strings.Builder, n *ast.Link, entering bool, source []byte) (ast.WalkStatus, error) {
-	if !entering {
-		buf.WriteString(" (")
-		buf.Write(n.Destination)
-		buf.WriteByte(')')
-	}
-	return ast.WalkContinue, nil
-}
-
-func renderImageStub(buf *strings.Builder, n *ast.Image, entering bool, source []byte) (ast.WalkStatus, error) {
-	if entering {
-		buf.WriteString("[画像: ")
-		buf.Write(n.Text(source))
-		buf.WriteString("]")
-	}
-	return ast.WalkSkipChildren, nil
-}
-
 func renderAutoLinkStub(buf *strings.Builder, n *ast.AutoLink, entering bool) (ast.WalkStatus, error) {
 	if entering {
 		buf.Write(n.URL(n.Label(nil)))
-	}
-	return ast.WalkContinue, nil
-}
-
-// --- Extension stubs ---
-
-func renderTableStub(buf *strings.Builder, n *east.Table, entering bool, source []byte, ctx *RenderContext) (ast.WalkStatus, error) {
-	// Stub: walk children, table rendering will be in table.go
-	if !entering {
-		buf.WriteByte('\n')
-	}
-	return ast.WalkContinue, nil
-}
-
-func renderTableCellStub(buf *strings.Builder, n *east.TableCell, entering bool, source []byte) (ast.WalkStatus, error) {
-	if !entering {
-		buf.WriteString("\t")
-	}
-	return ast.WalkContinue, nil
-}
-
-func renderStrikethroughStub(buf *strings.Builder, n *east.Strikethrough, entering bool) (ast.WalkStatus, error) {
-	if entering {
-		buf.WriteString(Strikethrough)
-	} else {
-		buf.WriteString(Reset)
 	}
 	return ast.WalkContinue, nil
 }

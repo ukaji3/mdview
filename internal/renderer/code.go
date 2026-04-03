@@ -177,23 +177,57 @@ func renderCodeBox(buf *strings.Builder, lines []string, lang string, ctx *Rende
 }
 
 // displayWidth returns the visible character width of a string,
-// ignoring ANSI escape sequences. Uses go-runewidth for accurate
-// East Asian Width handling.
+// ignoring ANSI escape sequences (CSI, OSC, DCS, APC).
+// Uses go-runewidth for accurate East Asian Width handling.
 func displayWidth(s string) int {
 	w := 0
-	inEscape := false
-	for _, r := range s {
-		if r == '\033' {
-			inEscape = true
-			continue
-		}
-		if inEscape {
-			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
-				inEscape = false
+	i := 0
+	runes := []rune(s)
+	for i < len(runes) {
+		r := runes[i]
+		if r == '\033' && i+1 < len(runes) {
+			next := runes[i+1]
+			switch next {
+			case '[': // CSI
+				i += 2
+				for i < len(runes) && !((runes[i] >= 'a' && runes[i] <= 'z') || (runes[i] >= 'A' && runes[i] <= 'Z')) {
+					i++
+				}
+				if i < len(runes) {
+					i++
+				}
+				continue
+			case ']': // OSC - terminated by BEL or ST
+				i += 2
+				for i < len(runes) {
+					if runes[i] == '\x07' {
+						i++
+						break
+					}
+					if runes[i] == '\033' && i+1 < len(runes) && runes[i+1] == '\\' {
+						i += 2
+						break
+					}
+					i++
+				}
+				continue
+			case 'P', '_': // DCS or APC - terminated by ST
+				i += 2
+				for i < len(runes) {
+					if runes[i] == '\033' && i+1 < len(runes) && runes[i+1] == '\\' {
+						i += 2
+						break
+					}
+					i++
+				}
+				continue
+			default:
+				i += 2
+				continue
 			}
-			continue
 		}
 		w += runewidth.RuneWidth(r)
+		i++
 	}
 	return w
 }

@@ -21,6 +21,10 @@ func blockquoteNestLevel(n ast.Node) int {
 // renderBlockquote renders a blockquote with colored vertical bars and italic text.
 // Each nesting level adds another "│ " prefix with the BlockquoteBar color from the theme.
 // Inner Markdown elements are rendered normally by the AST walker.
+//
+// TODO: 複数行のブロック引用では、│プレフィックスが最初の行にのみ付与されます。
+// 正しく修正するには、子要素をバッファにレンダリングしてから各行にプレフィックスを
+// 付与する必要がありますが、AST walkerアプローチの大幅なリファクタリングが必要です。
 func renderBlockquote(buf *strings.Builder, n *ast.Blockquote, entering bool, source []byte, ctx *RenderContext) (ast.WalkStatus, error) {
 	if entering {
 		// Determine the total nesting level (including this blockquote)

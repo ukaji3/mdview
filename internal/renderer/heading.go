@@ -1,7 +1,6 @@
 package renderer
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/yuin/goldmark/ast"
@@ -62,7 +61,7 @@ func renderHeading(buf *strings.Builder, n *ast.Heading, entering bool, source [
 		buf.WriteString(Reset)
 
 		// Blank line below
-		buf.WriteString(fmt.Sprintf("\n\n"))
+		buf.WriteString("\n\n")
 	}
 	return ast.WalkContinue, nil
 }
