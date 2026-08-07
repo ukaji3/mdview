@@ -1,12 +1,12 @@
 package terminal
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
+	"golang.org/x/sys/unix"
 	"golang.org/x/term"
 )
 
@@ -105,9 +105,10 @@ func boolStatus(ok bool) string {
 	return "not detected ✗"
 }
 
-// probeKitty sends a Kitty graphics query and checks for a response.
-// Query: \x1b_Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA\x1b\\
-// Expected response contains: \x1b_G
+// probeKitty sends a Kitty graphics query followed by a DA1 query and checks
+// for a Kitty graphics response. The DA1 query acts as a sentinel: virtually
+// all terminals answer DA1, so its arrival means the terminal has finished
+// responding (whether or not it supports the Kitty protocol).
 func probeKitty() bool {
 	if os.Getenv("KITTY_WINDOW_ID") != "" {
 		return true
@@ -121,14 +122,22 @@ func probeKitty() bool {
 		return true
 	}
 
-	return probeEscape("\x1b_Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA\x1b\\", "\x1b_G")
+	resp, ok := probeQuery("\x1b_Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA\x1b\\\x1b[c", hasDA1Response)
+	if !ok {
+		return false
+	}
+	return strings.Contains(resp, "\x1b_G")
 }
 
-// probeSixel sends a DA1 (Device Attributes) query and checks for Sixel support.
-// Query: \x1b[c
-// Sixel support indicated by ";4" in the response.
+// probeSixel sends a DA1 (Device Attributes) query and checks the attribute
+// list for "4" (Sixel graphics). Attributes are compared exactly, not by
+// substring, to avoid false positives on attributes like 42 or 44.
 func probeSixel() bool {
-	return probeEscape("\x1b[c", ";4")
+	resp, ok := probeQuery("\x1b[c", hasDA1Response)
+	if !ok {
+		return false
+	}
+	return da1HasAttribute(resp, "4")
 }
 
 // probeITerm2 checks for iTerm2-compatible terminals via env vars.
@@ -145,55 +154,102 @@ func probeITerm2() bool {
 	return false
 }
 
-// probeEscape sends an escape sequence to the terminal and reads the response,
-// checking if it contains the expected substring.
-func probeEscape(query, expect string) bool {
+// hasDA1Response reports whether s contains a complete DA1 response
+// (CSI ? ... c).
+func hasDA1Response(s string) bool {
+	start := strings.Index(s, "\x1b[?")
+	if start < 0 {
+		return false
+	}
+	return strings.IndexByte(s[start:], 'c') >= 0
+}
+
+// da1HasAttribute parses the DA1 response in s and reports whether the
+// attribute list contains exactly attr.
+func da1HasAttribute(s, attr string) bool {
+	start := strings.Index(s, "\x1b[?")
+	if start < 0 {
+		return false
+	}
+	body := s[start+3:]
+	end := strings.IndexByte(body, 'c')
+	if end < 0 {
+		return false
+	}
+	for _, a := range strings.Split(body[:end], ";") {
+		if a == attr {
+			return true
+		}
+	}
+	return false
+}
+
+// probeQuery sends an escape sequence to the terminal and synchronously reads
+// the response using poll with a deadline. No goroutine is spawned, so probes
+// never leak readers or steal each other's responses. Any pending input left
+// after the probe is drained before returning so it does not leak to the shell.
+func probeQuery(query string, isComplete func(string) bool) (string, bool) {
 	fd := int(os.Stdin.Fd())
 	if !term.IsTerminal(fd) {
-		return false
+		return "", false
 	}
 
 	oldState, err := term.MakeRaw(fd)
 	if err != nil {
-		return false
+		return "", false
 	}
 	defer term.Restore(fd, oldState)
+	defer drainInput(fd)
 
-	// Send query
 	os.Stdout.WriteString(query)
 
-	// Read response with timeout.
-	// NOTE: The reader goroutine may leak if the terminal does not respond before
-	// the timeout. os.Stdin.Read on a terminal cannot be reliably interrupted
-	// across platforms. This is acceptable because probeEscape is only called
-	// during --check-image, which exits immediately after. The goroutine does not
-	// access any shared state after sending on the done channel.
-	reader := bufio.NewReader(os.Stdin)
-	done := make(chan string, 1)
-	go func() {
-		var resp strings.Builder
-		buf := make([]byte, 128)
-		for {
-			n, err := reader.Read(buf)
-			if n > 0 {
-				resp.Write(buf[:n])
-				// Check if we have enough data
-				if strings.Contains(resp.String(), expect) {
-					done <- resp.String()
-					return
-				}
+	deadline := time.Now().Add(500 * time.Millisecond)
+	var resp strings.Builder
+	buf := make([]byte, 128)
+
+	for {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return resp.String(), false
+		}
+		pfd := []unix.PollFd{{Fd: int32(fd), Events: unix.POLLIN}}
+		n, err := unix.Poll(pfd, int(remaining.Milliseconds())+1)
+		if err != nil {
+			if err == unix.EINTR {
+				continue
 			}
-			if err != nil {
-				done <- resp.String()
-				return
+			return resp.String(), false
+		}
+		if n == 0 {
+			// timeout
+			return resp.String(), false
+		}
+		rn, err := unix.Read(fd, buf)
+		if rn > 0 {
+			resp.Write(buf[:rn])
+			if isComplete(resp.String()) {
+				return resp.String(), true
 			}
 		}
-	}()
+		if err != nil || rn <= 0 {
+			return resp.String(), false
+		}
+	}
+}
 
-	select {
-	case resp := <-done:
-		return strings.Contains(resp, expect)
-	case <-time.After(500 * time.Millisecond):
-		return false
+// drainInput consumes any pending bytes on fd without blocking, so that
+// unread terminal responses do not spill into the shell after exit.
+func drainInput(fd int) {
+	buf := make([]byte, 256)
+	for {
+		pfd := []unix.PollFd{{Fd: int32(fd), Events: unix.POLLIN}}
+		n, err := unix.Poll(pfd, 20)
+		if err != nil || n == 0 {
+			return
+		}
+		rn, err := unix.Read(fd, buf)
+		if rn <= 0 || err != nil {
+			return
+		}
 	}
 }

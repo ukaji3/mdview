@@ -6,45 +6,47 @@ import (
 	"github.com/yuin/goldmark/ast"
 )
 
-// blockquoteNestLevel counts the number of Blockquote ancestors to determine nesting depth.
-// The node itself is not counted; only its parents are examined.
-func blockquoteNestLevel(n ast.Node) int {
-	level := 0
-	for p := n.Parent(); p != nil; p = p.Parent() {
-		if _, ok := p.(*ast.Blockquote); ok {
-			level++
-		}
-	}
-	return level
-}
-
 // renderBlockquote renders a blockquote with colored vertical bars and italic text.
-// Each nesting level adds another "│ " prefix with the BlockquoteBar color from the theme.
-// Inner Markdown elements are rendered normally by the AST walker.
-//
-// TODO: 複数行のブロック引用では、│プレフィックスが最初の行にのみ付与されます。
-// 正しく修正するには、子要素をバッファにレンダリングしてから各行にプレフィックスを
-// 付与する必要がありますが、AST walkerアプローチの大幅なリファクタリングが必要です。
+// The children are rendered into a sub-buffer first, then EVERY line is
+// prefixed with a colored "│ " bar. Nested blockquotes compose naturally:
+// the inner quote prefixes its own lines, and the outer quote prefixes them
+// again, producing "│ │ ...".
 func renderBlockquote(buf *strings.Builder, n *ast.Blockquote, entering bool, source []byte, ctx *RenderContext) (ast.WalkStatus, error) {
-	if entering {
-		// Determine the total nesting level (including this blockquote)
-		nestLevel := blockquoteNestLevel(n) + 1
+	if !entering {
+		return ast.WalkSkipChildren, nil
+	}
 
-		// Write colored vertical bars for each nesting level
-		for i := 0; i < nestLevel; i++ {
-			if ctx != nil && ctx.Theme != nil && ctx.Theme.BlockquoteBar != "" {
-				buf.WriteString(ctx.Theme.BlockquoteBar)
-			}
-			buf.WriteString("│ ")
-			buf.WriteString(Reset)
+	// Render children into a sub-buffer with a width reduced by the prefix.
+	subCtx := ctx
+	if ctx != nil && ctx.TermWidth > 2 {
+		c := *ctx
+		c.TermWidth = ctx.TermWidth - 2
+		subCtx = &c
+	}
+	var inner strings.Builder
+	renderChildrenInto(&inner, n, source, subCtx)
+
+	// Trim trailing newlines, then prefix each line.
+	content := strings.TrimRight(inner.String(), "\n")
+
+	barPrefix := "│ "
+	barColor := ""
+	if ctx != nil && ctx.Theme != nil && ctx.Theme.BlockquoteBar != "" {
+		barColor = ctx.Theme.BlockquoteBar
+	}
+
+	for _, line := range strings.Split(content, "\n") {
+		if barColor != "" {
+			buf.WriteString(barColor)
 		}
-
-		// Apply italic for blockquote text
-		buf.WriteString(Italic)
-	} else {
-		// Reset italic and add trailing newline
+		buf.WriteString(barPrefix)
 		buf.WriteString(Reset)
+		buf.WriteString(Italic)
+		buf.WriteString(line)
+		buf.WriteString(ItalicOff)
 		buf.WriteByte('\n')
 	}
-	return ast.WalkContinue, nil
+	buf.WriteByte('\n')
+
+	return ast.WalkSkipChildren, nil
 }

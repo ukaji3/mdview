@@ -16,9 +16,9 @@ func genImage(w, h int) image.Image {
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
 			img.Set(x, y, color.RGBA{
-				R: uint8((x * 37 + y * 53) % 256),
-				G: uint8((x * 59 + y * 71) % 256),
-				B: uint8((x * 83 + y * 97) % 256),
+				R: uint8((x*37 + y*53) % 256),
+				G: uint8((x*59 + y*71) % 256),
+				B: uint8((x*83 + y*97) % 256),
 				A: 255,
 			})
 		}

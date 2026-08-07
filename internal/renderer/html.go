@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/mattn/go-runewidth"
+	"github.com/ukaji3/mdview/internal/sixel"
 	"github.com/ukaji3/mdview/internal/terminal"
 	"github.com/yuin/goldmark/ast"
 )
@@ -108,9 +109,9 @@ func processHTMLTags(html string, ctx *RenderContext) string {
 
 	matches := htmlTagRe.FindAllStringSubmatchIndex(html, -1)
 	for _, loc := range matches {
-		// Write text before this tag.
+		// Write text before this tag (sanitized against escape injection).
 		if loc[0] > lastIndex {
-			text := html[lastIndex:loc[0]]
+			text := sanitizeText(html[lastIndex:loc[0]])
 			if inSummary {
 				summaryBuf.WriteString(text)
 			} else {
@@ -158,14 +159,15 @@ func processHTMLTags(html string, ctx *RenderContext) string {
 					buf.WriteString(linkOpen(ctx))
 				}
 			} else {
-				buf.WriteString(Reset)
+				buf.WriteString(UnderlineOff)
+				buf.WriteString(FgDefault)
 				// Pop href from stack and output URL
 				if len(hrefStack) > 0 {
 					href := hrefStack[len(hrefStack)-1]
 					hrefStack = hrefStack[:len(hrefStack)-1]
 					if href != "" {
 						buf.WriteString(" (")
-						buf.WriteString(href)
+						buf.WriteString(sanitizeText(href))
 						buf.WriteString(")")
 					}
 				}
@@ -191,7 +193,7 @@ func processHTMLTags(html string, ctx *RenderContext) string {
 					buf.WriteString(ctx.Theme.CodeBg)
 				}
 			} else {
-				buf.WriteString(Reset)
+				buf.WriteString(BgDefault)
 			}
 
 		case "kbd":
@@ -202,7 +204,7 @@ func processHTMLTags(html string, ctx *RenderContext) string {
 				buf.WriteString("[")
 			} else {
 				buf.WriteString("]")
-				buf.WriteString(Reset)
+				buf.WriteString(FgDefault)
 			}
 
 		case "del", "s":
@@ -233,12 +235,19 @@ func processHTMLTags(html string, ctx *RenderContext) string {
 
 	// Write any remaining text after the last tag.
 	if lastIndex < len(html) {
-		remaining := html[lastIndex:]
+		remaining := sanitizeText(html[lastIndex:])
 		if inSummary {
 			summaryBuf.WriteString(remaining)
 		} else {
 			buf.WriteString(remaining)
 		}
+	}
+
+	// Flush an unclosed <summary> so its content is not silently dropped.
+	if inSummary && summaryBuf.Len() > 0 {
+		buf.WriteString("▶ ")
+		buf.WriteString(strings.TrimSpace(summaryBuf.String()))
+		buf.WriteByte('\n')
 	}
 
 	return buf.String()
@@ -260,15 +269,18 @@ func renderImgTag(tag string, ctx *RenderContext) string {
 	if src != "" && ctx != nil && ctx.ImageProtocol != terminal.ImageNone {
 		img, err := loadImage(src)
 		if err == nil {
-			maxWidth := int(float64(ctx.TermWidth) * 0.8)
-			if maxWidth < 1 {
-				maxWidth = 1
-			}
-			encoded, encErr := encodeImageByProtocol(img, maxWidth, ctx.ImageProtocol)
+			maxWidthPx := imageMaxPixelWidth(ctx)
+			img = sixel.ResizeImage(img, maxWidthPx)
+			encoded, encErr := encodeImageByProtocol(img, maxWidthPx, ctx.ImageProtocol)
 			if encErr == nil {
 				var buf strings.Builder
 				buf.WriteString(encoded)
 				buf.WriteByte('\n')
+				// Placeholder lines so the pager accounts for the image height.
+				rows := imageRows(img.Bounds().Dy(), ctx.CellHeight)
+				for i := 1; i < rows; i++ {
+					buf.WriteByte('\n')
+				}
 				if alt != "" {
 					renderImageCaption(&buf, alt, ctx)
 				}

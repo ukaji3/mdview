@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -73,6 +74,8 @@ func (p *Pager) SetFilePath(path string) {
 }
 
 // UpdateContent replaces the pager content and dimensions, clamping the scroll offset.
+// If a search is active, matches are recomputed against the new content so that
+// n/N navigation does not jump to stale line numbers.
 func (p *Pager) UpdateContent(content string, newWidth, newHeight int) {
 	p.lines = strings.Split(content, "\n")
 	p.width = newWidth
@@ -81,6 +84,10 @@ func (p *Pager) UpdateContent(content string, newWidth, newHeight int) {
 		p.height = 1
 	}
 	p.hasImages = containsImageSequences(content)
+	// Recompute search matches against the new content
+	if p.searchTerm != "" {
+		p.Search(p.searchTerm)
+	}
 	// Clamp offset
 	maxOffset := len(p.lines) - p.height
 	if maxOffset < 0 {
@@ -201,19 +208,47 @@ func (p *Pager) Run() error {
 		fmt.Print(strings.Join(p.lines, "\n"))
 		return nil
 	}
-	defer term.Restore(fd, oldState)
+
+	// restore returns the terminal to its normal state. It is idempotent and
+	// is called from the deferred path AND from the signal handler, so the
+	// terminal is never left in raw mode / alternate screen after an abnormal
+	// termination (SIGINT/SIGTERM/SIGHUP).
+	var restoreOnce sync.Once
+	restore := func() {
+		restoreOnce.Do(func() {
+			os.Stdout.WriteString("\x1b[?25h")   // show cursor
+			os.Stdout.WriteString("\x1b[?1049l") // leave alternate screen
+			term.Restore(fd, oldState)
+		})
+	}
+	defer restore()
+
+	// Terminating signals: restore the terminal, then re-raise the default
+	// behavior so the exit status is correct.
+	termSigCh := make(chan os.Signal, 1)
+	signal.Notify(termSigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+	defer signal.Stop(termSigCh)
+	go func() {
+		sig, ok := <-termSigCh
+		if !ok {
+			return
+		}
+		restore()
+		signal.Reset(sig.(syscall.Signal))
+		syscall.Kill(syscall.Getpid(), sig.(syscall.Signal))
+	}()
 
 	// Switch to alternate screen buffer
 	os.Stdout.WriteString("\x1b[?1049h")
-	defer os.Stdout.WriteString("\x1b[?1049l")
 
 	// Hide cursor
 	os.Stdout.WriteString("\x1b[?25l")
-	defer os.Stdout.WriteString("\x1b[?25h")
 
 	p.render(fd)
 
-	// Stdin reader goroutine.
+	// Stdin reader goroutine — the ONLY reader of os.Stdin while the pager
+	// runs. Search input is also consumed through keyCh (see handleSearch),
+	// so no two goroutines ever compete for stdin reads.
 	// NOTE: This goroutine intentionally leaks when Run() returns. os.Stdin.Read
 	// blocks on terminal input and cannot be reliably interrupted across platforms.
 	// This is acceptable because the process exits immediately after Run() returns
@@ -250,7 +285,7 @@ func (p *Pager) Run() error {
 			if ev.err != nil || ev.n == 0 {
 				return nil
 			}
-			if p.handleKeyEvent(ev, fd, oldState) {
+			if p.handleKeyEvent(ev, fd, keyCh) {
 				return nil // quit
 			}
 			p.render(fd)
@@ -265,7 +300,7 @@ func (p *Pager) Run() error {
 }
 
 // handleKeyEvent processes a single key event. Returns true if the pager should quit.
-func (p *Pager) handleKeyEvent(ev keyEvent, fd int, oldState *term.State) bool {
+func (p *Pager) handleKeyEvent(ev keyEvent, fd int, keyCh <-chan keyEvent) bool {
 	// Check for escape sequences (arrow keys, page up/down)
 	if ev.n >= 3 && ev.buf[0] == 0x1b && ev.buf[1] == '[' {
 		switch ev.buf[2] {
@@ -283,7 +318,7 @@ func (p *Pager) handleKeyEvent(ev keyEvent, fd int, oldState *term.State) bool {
 
 	key := ev.buf[0]
 	switch key {
-	case 'q':
+	case 'q', 0x03: // q or Ctrl+C
 		return true
 	case 'j':
 		p.ScrollDown(1)
@@ -302,7 +337,8 @@ func (p *Pager) handleKeyEvent(ev keyEvent, fd int, oldState *term.State) bool {
 	case 'N':
 		p.PrevMatch()
 	case '/':
-		p.handleSearch(fd, oldState)
+		p.handleSearch(fd, keyCh)
+	case '~': // stray trailing byte of a 4-byte PgUp/PgDn sequence — ignore
 	}
 	return false
 }
@@ -380,8 +416,11 @@ func (p *Pager) watchFile(ch chan<- struct{}, doneCh <-chan struct{}) {
 	}
 }
 
-// handleSearch enters search mode, reads a search term, and performs search.
-func (p *Pager) handleSearch(fd int, oldState *term.State) {
+// handleSearch enters search mode, reads a search term via keyCh, and performs
+// the search. Consuming keyCh (instead of reading os.Stdin directly) keeps the
+// stdin reader goroutine the sole reader, avoiding a read race that could drop
+// or misroute typed bytes.
+func (p *Pager) handleSearch(fd int, keyCh <-chan keyEvent) {
 	// Show search prompt on status bar line
 	var buf strings.Builder
 	buf.WriteString("\x1b[")
@@ -391,27 +430,27 @@ func (p *Pager) handleSearch(fd int, oldState *term.State) {
 	buf.WriteString("\x1b[7m/\x1b[0m")
 	os.Stdout.WriteString(buf.String())
 
-	// Read search term character by character
+	// Read search term through the key event channel
 	var searchBuf []byte
-	readBuf := make([]byte, 1)
-	for {
-		n, err := os.Stdin.Read(readBuf)
-		if err != nil || n == 0 {
+loop:
+	for ev := range keyCh {
+		if ev.err != nil || ev.n == 0 {
 			break
 		}
-		ch := readBuf[0]
-		if ch == '\r' || ch == '\n' {
-			break
-		}
-		if ch == 0x1b { // Escape - cancel search
-			return
-		}
-		if ch == 0x7f || ch == 0x08 { // Backspace
-			if len(searchBuf) > 0 {
-				searchBuf = searchBuf[:len(searchBuf)-1]
+		for _, ch := range ev.buf[:ev.n] {
+			if ch == '\r' || ch == '\n' {
+				break loop
 			}
-		} else {
-			searchBuf = append(searchBuf, ch)
+			if ch == 0x1b || ch == 0x03 { // Escape / Ctrl+C - cancel search
+				return
+			}
+			if ch == 0x7f || ch == 0x08 { // Backspace
+				if len(searchBuf) > 0 {
+					searchBuf = searchBuf[:len(searchBuf)-1]
+				}
+			} else {
+				searchBuf = append(searchBuf, ch)
+			}
 		}
 		// Update search prompt display
 		var prompt strings.Builder

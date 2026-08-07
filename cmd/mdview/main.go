@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -18,6 +19,10 @@ func main() {
 	// 1. Parse CLI arguments
 	config, err := cli.ParseArgs(os.Args[1:])
 	if err != nil {
+		if errors.Is(err, cli.ErrHelp) {
+			fmt.Print(cli.Usage())
+			return
+		}
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -56,6 +61,7 @@ func main() {
 	ctx := &renderer.RenderContext{
 		TermWidth:     caps.Width,
 		CellHeight:    caps.CellHeight,
+		CellWidth:     caps.CellWidth,
 		ColorMode:     caps.ColorMode,
 		ImageProtocol: caps.ImageProtocol,
 		Theme:         caps.Theme,
@@ -96,6 +102,7 @@ func main() {
 			rctx := &renderer.RenderContext{
 				TermWidth:     termWidth,
 				CellHeight:    caps.CellHeight,
+				CellWidth:     caps.CellWidth,
 				ColorMode:     caps.ColorMode,
 				ImageProtocol: caps.ImageProtocol,
 				Theme:         caps.Theme,

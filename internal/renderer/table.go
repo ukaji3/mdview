@@ -21,11 +21,11 @@ func extractCellText(cell *east.TableCell, source []byte) string {
 // extractNodeText recursively extracts text from a node and its children.
 func extractNodeText(buf *strings.Builder, n ast.Node, source []byte) {
 	if t, ok := n.(*ast.Text); ok {
-		buf.Write(t.Segment.Value(source))
+		buf.WriteString(sanitizeText(string(t.Segment.Value(source))))
 		return
 	}
 	if s, ok := n.(*ast.String); ok {
-		buf.Write(s.Value)
+		buf.WriteString(sanitizeText(string(s.Value)))
 		return
 	}
 	if cs, ok := n.(*ast.CodeSpan); ok {
@@ -130,6 +130,34 @@ func renderTable(buf *strings.Builder, n *east.Table, entering bool, source []by
 		}
 	}
 
+	// Cap the table to the terminal width: total = numCols*3 + Σwidths + 1
+	// (each cell contributes "│ text "; plus the final "│").
+	// Shrink the widest columns until the table fits (min width 3), and
+	// truncate cell text to the final column widths when drawing.
+	if ctx.TermWidth > 0 {
+		const minColWidth = 3
+		total := func() int {
+			t := numCols*3 + 1
+			for _, w := range colWidths {
+				t += w
+			}
+			return t
+		}
+		for total() > ctx.TermWidth {
+			// Find the widest column
+			widest := 0
+			for i := 1; i < numCols; i++ {
+				if colWidths[i] > colWidths[widest] {
+					widest = i
+				}
+			}
+			if colWidths[widest] <= minColWidth {
+				break // all columns at minimum; give up shrinking
+			}
+			colWidths[widest]--
+		}
+	}
+
 	borderColor := ""
 	headerColor := ""
 	if ctx.Theme != nil {
@@ -196,8 +224,13 @@ func drawRow(buf *strings.Builder, cells []cellData, colWidths []int, alignments
 			text = cells[i].text
 		}
 
-		w := displayWidth(text)
 		colW := colWidths[i]
+		// Truncate cell content that no longer fits its (possibly shrunken) column.
+		if displayWidth(text) > colW {
+			text = truncateLine(text, colW)
+		}
+
+		w := displayWidth(text)
 		padTotal := colW - w
 		if padTotal < 0 {
 			padTotal = 0

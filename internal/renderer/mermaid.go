@@ -1,15 +1,26 @@
 package renderer
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/ukaji3/mdview/internal/sixel"
 	"github.com/ukaji3/mdview/internal/terminal"
 )
+
+// truncateRunes truncates s to at most n runes (UTF-8 safe).
+func truncateRunes(s string, n int) string {
+	runes := []rune(s)
+	if len(runes) <= n {
+		return s
+	}
+	return string(runes[:n])
+}
 
 // IsMermaid returns true only when the language identifier is exactly "mermaid".
 func IsMermaid(lang string) bool {
@@ -37,19 +48,24 @@ func CleanupTempFiles(paths ...string) {
 	}
 }
 
+// mmdcTimeout is the maximum time allowed for a single mmdc invocation.
+// mmdc launches a headless browser and can hang on pathological input.
+const mmdcTimeout = 30 * time.Second
+
 // RenderMermaid processes a Mermaid code block and returns the rendered string.
 // It writes the code to a temp file, invokes mmdc to produce a PNG, and then
-// either displays the PNG via Sixel or falls back to a text representation.
+// either displays the PNG via the detected image protocol or falls back to a
+// text representation.
 func RenderMermaid(code, theme string, ctx *RenderContext) string {
 	var buf strings.Builder
 
-	// Create temp input file.
+	// Create a dedicated temp directory so that ALL files mmdc generates
+	// (including multi-page outputs like output-1.png) are cleaned up by
+	// removing the directory.
 	// Use a directory under $HOME if available, because snap-confined mmdc
 	// cannot access the system /tmp directory.
-	tmpDir := mermaidTempDir()
-	inputFile, err := os.CreateTemp(tmpDir, "mermaid-*.mmd")
+	workDir, err := os.MkdirTemp(mermaidTempDir(), "mdview-mermaid-*")
 	if err != nil {
-		// Temp file creation error
 		errMsg := "[Mermaid一時ファイルエラー]"
 		if ctx.Theme != nil {
 			buf.WriteString(ctx.Theme.ErrorColor)
@@ -62,13 +78,10 @@ func RenderMermaid(code, theme string, ctx *RenderContext) string {
 		renderCodeBox(&buf, lines, "mermaid", ctx)
 		return buf.String()
 	}
-	inputPath := inputFile.Name()
+	defer os.RemoveAll(workDir)
 
-	// Write mermaid code to temp file
-	_, err = inputFile.WriteString(code)
-	inputFile.Close()
-	if err != nil {
-		CleanupTempFiles(inputPath)
+	inputPath := filepath.Join(workDir, "diagram.mmd")
+	if err := os.WriteFile(inputPath, []byte(code), 0600); err != nil {
 		errMsg := "[Mermaid一時ファイルエラー]"
 		if ctx.Theme != nil {
 			buf.WriteString(ctx.Theme.ErrorColor)
@@ -83,7 +96,6 @@ func RenderMermaid(code, theme string, ctx *RenderContext) string {
 
 	// Output PNG path
 	outputPath := inputPath + ".png"
-	defer CleanupTempFiles(inputPath, outputPath)
 
 	// Check if mmdc is available
 	mmdcPath, err := exec.LookPath("mmdc")
@@ -94,17 +106,19 @@ func RenderMermaid(code, theme string, ctx *RenderContext) string {
 		return buf.String()
 	}
 
-	// Build and execute mmdc command
+	// Build and execute mmdc command with a timeout.
+	cmdCtx, cancel := context.WithTimeout(context.Background(), mmdcTimeout)
+	defer cancel()
 	args := BuildMmdcArgs(inputPath, outputPath, theme)
-	cmd := exec.Command(mmdcPath, args...)
+	cmd := exec.CommandContext(cmdCtx, mmdcPath, args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		// mmdc execution error
-		errText := string(output)
-		if len(errText) > 100 {
-			errText = errText[:100]
+		var errMsg string
+		if cmdCtx.Err() == context.DeadlineExceeded {
+			errMsg = "[Mermaid変換エラー: タイムアウト]"
+		} else {
+			errMsg = fmt.Sprintf("[Mermaid変換エラー: %s]", truncateRunes(string(output), 100))
 		}
-		errMsg := fmt.Sprintf("[Mermaid変換エラー: %s]", errText)
 		if ctx.Theme != nil {
 			buf.WriteString(ctx.Theme.ErrorColor)
 		}
@@ -121,12 +135,9 @@ func RenderMermaid(code, theme string, ctx *RenderContext) string {
 		// Load PNG and encode using the detected image protocol
 		img, err := sixel.LoadLocalImage(outputPath)
 		if err == nil {
-			maxWidth := int(float64(ctx.TermWidth) * 0.8)
-			if maxWidth < 1 {
-				maxWidth = 1
-			}
-			img = sixel.ResizeImage(img, maxWidth)
-			encoded, err := encodeImageByProtocol(img, maxWidth, ctx.ImageProtocol)
+			maxWidthPx := imageMaxPixelWidth(ctx)
+			img = sixel.ResizeImage(img, maxWidthPx)
+			encoded, err := encodeImageByProtocol(img, maxWidthPx, ctx.ImageProtocol)
 			if err == nil {
 				buf.WriteString(encoded)
 				buf.WriteByte('\n')

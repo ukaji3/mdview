@@ -35,6 +35,32 @@ func TestProperty1_PrettyPrinterRoundTrip(t *testing.T) {
 	})
 }
 
+// Property: PrettyPrint is a fixed point (idempotent) even for text containing
+// Markdown metacharacters. Escaping in the first pass must not change the
+// document structure on subsequent passes:
+//
+//	PP(Parse(PP(Parse(text)))) == PP(Parse(text))
+//
+// This is the standard printer-correctness property when the source text may
+// contain characters that require escaping (a direct AST comparison would see
+// the added backslashes in raw text segments).
+func TestProperty_PrettyPrinterIdempotence(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		// Text WITH Markdown metacharacters — exercises the escaping logic.
+		text := rapid.StringMatching("[A-Za-z][A-Za-z0-9 *_`#\\[\\]~|<>-]{0,40}").Draw(t, "text")
+
+		source1 := []byte(text)
+		pp1 := PrettyPrint(parser.Parse(source1), source1)
+
+		source2 := []byte(pp1)
+		pp2 := PrettyPrint(parser.Parse(source2), source2)
+
+		if pp1 != pp2 {
+			t.Fatalf("PrettyPrint is not idempotent.\nInput: %q\nPass1: %q\nPass2: %q", text, pp1, pp2)
+		}
+	})
+}
+
 // genMarkdown generates a random valid Markdown document from a set of block elements.
 func genMarkdown(t *rapid.T) string {
 	numBlocks := rapid.IntRange(1, 5).Draw(t, "numBlocks")

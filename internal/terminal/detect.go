@@ -31,6 +31,7 @@ const (
 type Capabilities struct {
 	Width         int
 	CellHeight    int // terminal cell height in pixels (for image row calculation)
+	CellWidth     int // terminal cell width in pixels (for image sizing)
 	ColorMode     ColorMode
 	ImageProtocol ImageProtocol
 	IsTTY         bool
@@ -72,15 +73,16 @@ func DetectWidth() int {
 	return w
 }
 
-// DetectSixel checks whether the terminal supports Sixel graphics.
-// This is a stub that returns false; real DA1 detection requires
-// terminal I/O interaction that is not safe in all environments.
+// DetectSixel checks whether the terminal supports Sixel graphics by sending
+// a DA1 (Device Attributes) query and checking the response for attribute 4.
+// Only probes when stdin/stdout are terminals.
 func DetectSixel() bool {
-	return false
+	return probeSixel()
 }
 
 // DetectImageProtocol detects which image protocol the terminal supports.
-// It checks environment variables first, then falls back to escape sequence probes.
+// It checks environment variables first, then falls back to a DA1 probe for
+// Sixel support.
 func DetectImageProtocol() ImageProtocol {
 	termProgram := os.Getenv("TERM_PROGRAM")
 
@@ -113,13 +115,32 @@ func DetectImageProtocol() ImageProtocol {
 
 // DetectCellHeight returns the terminal cell height in pixels.
 // It uses the TIOCGWINSZ ioctl to get pixel dimensions and divides by rows.
-// Falls back to 16 pixels if detection fails.
+// Falls back to 16 pixels if detection fails or yields a nonsensical value.
 func DetectCellHeight() int {
 	ws, err := unix.IoctlGetWinsize(int(os.Stdout.Fd()), unix.TIOCGWINSZ)
 	if err != nil || ws.Row == 0 || ws.Ypixel == 0 {
 		return 16 // fallback: typical cell height
 	}
-	return int(ws.Ypixel) / int(ws.Row)
+	h := int(ws.Ypixel) / int(ws.Row)
+	if h < 1 {
+		return 16
+	}
+	return h
+}
+
+// DetectCellWidth returns the terminal cell width in pixels.
+// It uses the TIOCGWINSZ ioctl to get pixel dimensions and divides by columns.
+// Falls back to 8 pixels if detection fails or yields a nonsensical value.
+func DetectCellWidth() int {
+	ws, err := unix.IoctlGetWinsize(int(os.Stdout.Fd()), unix.TIOCGWINSZ)
+	if err != nil || ws.Col == 0 || ws.Xpixel == 0 {
+		return 8 // fallback: typical cell width
+	}
+	w := int(ws.Xpixel) / int(ws.Col)
+	if w < 1 {
+		return 8
+	}
+	return w
 }
 
 // DetectCapabilities detects all terminal capabilities and returns
@@ -140,6 +161,7 @@ func DetectCapabilities() *Capabilities {
 	return &Capabilities{
 		Width:         DetectWidth(),
 		CellHeight:    DetectCellHeight(),
+		CellWidth:     DetectCellWidth(),
 		ColorMode:     mode,
 		ImageProtocol: imgProto,
 		IsTTY:         isTTY,

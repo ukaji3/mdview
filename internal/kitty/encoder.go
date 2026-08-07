@@ -1,14 +1,11 @@
 package kitty
 
 import (
-	"bytes"
-	"encoding/base64"
 	"fmt"
 	"image"
-	"image/png"
 	"strings"
 
-	"github.com/ukaji3/mdview/internal/sixel"
+	"github.com/ukaji3/mdview/internal/imageutil"
 )
 
 const chunkSize = 4096
@@ -21,16 +18,10 @@ func EncodeImage(img image.Image, maxWidth int) (string, error) {
 		return "", fmt.Errorf("nil image")
 	}
 
-	img = sixel.ResizeImage(img, maxWidth)
-
-	// Encode as PNG
-	var pngBuf bytes.Buffer
-	if err := png.Encode(&pngBuf, img); err != nil {
-		return "", fmt.Errorf("failed to encode PNG: %w", err)
+	_, b64Data, err := imageutil.EncodePNGBase64(img, maxWidth)
+	if err != nil {
+		return "", err
 	}
-
-	// Base64 encode
-	b64Data := base64.StdEncoding.EncodeToString(pngBuf.Bytes())
 
 	var buf strings.Builder
 

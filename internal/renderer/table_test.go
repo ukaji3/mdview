@@ -57,11 +57,11 @@ func TestProperty9_TableColumnWidthAutoAdjust(t *testing.T) {
 		node := parser.Parse(source)
 		theme := terminal.DefaultTheme()
 		ctx := &RenderContext{
-			TermWidth:    120,
-			ColorMode:    terminal.ColorTrue,
+			TermWidth:     120,
+			ColorMode:     terminal.ColorTrue,
 			ImageProtocol: terminal.ImageNone,
-			Theme:        theme,
-			IsTTY:        true,
+			Theme:         theme,
+			IsTTY:         true,
 		}
 		result := Render(node, source, ctx)
 
@@ -166,11 +166,11 @@ func TestProperty10_TableAlignment(t *testing.T) {
 		node := parser.Parse(source)
 		theme := terminal.DefaultTheme()
 		ctx := &RenderContext{
-			TermWidth:    120,
-			ColorMode:    terminal.ColorTrue,
+			TermWidth:     120,
+			ColorMode:     terminal.ColorTrue,
 			ImageProtocol: terminal.ImageNone,
-			Theme:        theme,
-			IsTTY:        true,
+			Theme:         theme,
+			IsTTY:         true,
 		}
 		result := Render(node, source, ctx)
 
@@ -269,11 +269,11 @@ func TestTable_BasicRendering(t *testing.T) {
 	node := parser.Parse(source)
 	theme := terminal.DefaultTheme()
 	ctx := &RenderContext{
-		TermWidth:    80,
-		ColorMode:    terminal.ColorTrue,
+		TermWidth:     80,
+		ColorMode:     terminal.ColorTrue,
 		ImageProtocol: terminal.ImageNone,
-		Theme:        theme,
-		IsTTY:        true,
+		Theme:         theme,
+		IsTTY:         true,
 	}
 	result := Render(node, source, ctx)
 
@@ -302,11 +302,11 @@ func TestTable_Alignment(t *testing.T) {
 	node := parser.Parse(source)
 	theme := terminal.DefaultTheme()
 	ctx := &RenderContext{
-		TermWidth:    80,
-		ColorMode:    terminal.ColorTrue,
+		TermWidth:     80,
+		ColorMode:     terminal.ColorTrue,
 		ImageProtocol: terminal.ImageNone,
-		Theme:        theme,
-		IsTTY:        true,
+		Theme:         theme,
+		IsTTY:         true,
 	}
 	result := Render(node, source, ctx)
 

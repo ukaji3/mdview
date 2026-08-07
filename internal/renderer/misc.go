@@ -31,7 +31,9 @@ func renderThematicBreak(buf *strings.Builder, n *ast.ThematicBreak, entering bo
 }
 
 // renderLink renders a link with colored, underlined text followed by the URL in parentheses.
-// Format: <LinkColor><Underline>link text<Reset> (<URL>)
+// Format: <LinkColor><Underline>link text<UnderlineOff><FgDefault> (<URL>)
+// Individual off-codes are used instead of a full Reset so that outer styles
+// (e.g. bold around the link) are preserved.
 func renderLink(buf *strings.Builder, n *ast.Link, entering bool, source []byte, ctx *RenderContext) (ast.WalkStatus, error) {
 	if entering {
 		if ctx.Theme != nil && ctx.Theme.LinkColor != "" {
@@ -39,9 +41,10 @@ func renderLink(buf *strings.Builder, n *ast.Link, entering bool, source []byte,
 		}
 		buf.WriteString(Underline)
 	} else {
-		buf.WriteString(Reset)
+		buf.WriteString(UnderlineOff)
+		buf.WriteString(FgDefault)
 		buf.WriteString(" (")
-		buf.Write(n.Destination)
+		buf.WriteString(sanitizeText(string(n.Destination)))
 		buf.WriteByte(')')
 	}
 	return ast.WalkContinue, nil
