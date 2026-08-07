@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/mattn/go-runewidth"
 	"github.com/yuin/goldmark/ast"
 )
 
@@ -88,7 +87,7 @@ func renderCodeBox(buf *strings.Builder, lines []string, lang string, ctx *Rende
 	// Inner content area:
 	// "│" + " " + lineNum + " " + "│" + " " + code + padding + " " + "│"
 	// Use actual display width of box drawing characters
-	borderCharWidth := runewidth.RuneWidth('│')
+	borderCharWidth := runeW('│')
 	overhead := borderCharWidth + 1 + lineNumWidth + 1 + borderCharWidth + 1 + 1 + borderCharWidth
 	codeAreaWidth := width - overhead
 	if codeAreaWidth < 1 {
@@ -97,16 +96,16 @@ func renderCodeBox(buf *strings.Builder, lines []string, lang string, ctx *Rende
 
 	// --- Top border ---
 	// Use display width for border calculations
-	dashWidth := runewidth.RuneWidth('─')
-	topLeftWidth := runewidth.StringWidth("┌─")
-	topRightWidth := runewidth.RuneWidth('┐')
+	dashWidth := runeW('─')
+	topLeftWidth := stringW("┌─")
+	topRightWidth := runeW('┐')
 	buf.WriteString(borderColor)
 	buf.WriteString("┌─")
 	if lang != "" {
 		buf.WriteString(" ")
 		buf.WriteString(lang)
 		buf.WriteString(" ")
-		langDisplayWidth := runewidth.StringWidth(lang)
+		langDisplayWidth := stringW(lang)
 		remainingWidth := width - topLeftWidth - 1 - langDisplayWidth - 1 - topRightWidth
 		if remainingWidth < 0 {
 			remainingWidth = 0
@@ -165,8 +164,8 @@ func renderCodeBox(buf *strings.Builder, lines []string, lang string, ctx *Rende
 	// --- Bottom border ---
 	buf.WriteString(borderColor)
 	buf.WriteString("└")
-	bottomLeftWidth := runewidth.RuneWidth('└')
-	bottomRightWidth := runewidth.RuneWidth('┘')
+	bottomLeftWidth := runeW('└')
+	bottomRightWidth := runeW('┘')
 	remainingWidth := width - bottomLeftWidth - bottomRightWidth
 	if remainingWidth < 0 {
 		remainingWidth = 0
@@ -225,7 +224,7 @@ func displayWidth(s string) int {
 			prev = r
 			continue
 		}
-		w += runewidth.RuneWidth(r)
+		w += runeW(r)
 		prev = r
 	}
 	return w
@@ -251,7 +250,7 @@ func expandTabs(line string) string {
 			continue
 		}
 		b.WriteRune(r)
-		col += runewidth.RuneWidth(r)
+		col += runeW(r)
 	}
 	return b.String()
 }
@@ -266,13 +265,13 @@ func truncateLine(line string, maxWidth int) string {
 	w := 0
 	runes := []rune(line)
 	for i, r := range runes {
-		rw := runewidth.RuneWidth(r)
+		rw := runeW(r)
 		if w+rw > maxWidth {
 			if maxWidth >= 1 {
 				cutW := 0
 				cutIdx := 0
 				for j, cr := range runes[:i] {
-					crw := runewidth.RuneWidth(cr)
+					crw := runeW(cr)
 					if cutW+crw > maxWidth-1 {
 						break
 					}
