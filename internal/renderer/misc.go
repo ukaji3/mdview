@@ -3,7 +3,6 @@ package renderer
 import (
 	"strings"
 
-	"github.com/mattn/go-runewidth"
 	"github.com/yuin/goldmark/ast"
 )
 
@@ -19,7 +18,7 @@ func renderThematicBreak(buf *strings.Builder, n *ast.ThematicBreak, entering bo
 		if ctx.Theme != nil && ctx.Theme.HRColor != "" {
 			buf.WriteString(ctx.Theme.HRColor)
 		}
-		dashWidth := runewidth.RuneWidth('─')
+		dashWidth := runeW('─')
 		dashCount := width / dashWidth
 		buf.WriteString(strings.Repeat("─", dashCount))
 		if ctx.Theme != nil && ctx.Theme.HRColor != "" {

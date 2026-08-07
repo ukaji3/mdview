@@ -2,8 +2,6 @@ package renderer
 
 import (
 	"strings"
-
-	"github.com/mattn/go-runewidth"
 )
 
 // wrapANSI wraps ANSI-decorated text to the given display width.
@@ -13,7 +11,7 @@ import (
 // preserved. SGR state persists across terminal lines, so no style
 // save/restore is needed at break points.
 func wrapANSI(s string, width int) string {
-	if width <= 0 || !strings.ContainsAny(s, " ") && runewidth.StringWidth(s) <= width {
+	if width <= 0 || !strings.ContainsAny(s, " ") && stringW(s) <= width {
 		// Cheap pre-check is not exact for ANSI text; fall through when unsure.
 		if width <= 0 {
 			return s
@@ -72,7 +70,7 @@ func wrapANSILine(out *strings.Builder, line string, width int) {
 			continue
 		}
 
-		rw := runewidth.RuneWidth(r)
+		rw := runeW(r)
 
 		if curWidth+rw > width && curWidth > 0 {
 			if r == ' ' {
@@ -162,7 +160,7 @@ func displayWidthRunes(runes []rune) int {
 			i = skipEscape(runes, i)
 			continue
 		}
-		w += runewidth.RuneWidth(runes[i])
+		w += runeW(runes[i])
 		i++
 	}
 	return w

@@ -3,7 +3,6 @@ package renderer
 import (
 	"strings"
 
-	"github.com/mattn/go-runewidth"
 	"github.com/yuin/goldmark/ast"
 	east "github.com/yuin/goldmark/extension/ast"
 )
@@ -197,7 +196,7 @@ type cellData struct {
 func drawHorizontalBorder(buf *strings.Builder, colWidths []int, left, mid, right, borderColor string) {
 	buf.WriteString(borderColor)
 	buf.WriteString(left)
-	dashWidth := runewidth.RuneWidth('─')
+	dashWidth := runeW('─')
 	for i, w := range colWidths {
 		// Each cell has 1 space padding on each side, so width + 2
 		fillWidth := w + 2

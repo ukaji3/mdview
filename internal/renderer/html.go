@@ -4,7 +4,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/mattn/go-runewidth"
 	"github.com/ukaji3/mdview/internal/sixel"
 	"github.com/ukaji3/mdview/internal/terminal"
 	"github.com/yuin/goldmark/ast"
@@ -308,7 +307,7 @@ func buildThematicBreak(ctx *RenderContext) string {
 	if ctx != nil && ctx.Theme != nil && ctx.Theme.HRColor != "" {
 		buf.WriteString(ctx.Theme.HRColor)
 	}
-	dashWidth := runewidth.RuneWidth('─')
+	dashWidth := runeW('─')
 	dashCount := width / dashWidth
 	buf.WriteString(strings.Repeat("─", dashCount))
 	if ctx != nil && ctx.Theme != nil && ctx.Theme.HRColor != "" {
