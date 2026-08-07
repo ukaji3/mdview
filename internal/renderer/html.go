@@ -15,12 +15,6 @@ var (
 	htmlTagRe = regexp.MustCompile(`<(/?)(\w+)([^>]*)>`)
 	// attrRe extracts key="value" or key='value' attribute pairs.
 	attrRe = regexp.MustCompile(`(\w+)=["']([^"']*)["']`)
-	// selfClosingBrRe matches <br>, <br/>, <br />.
-	selfClosingBrRe = regexp.MustCompile(`(?i)<br\s*/?>`)
-	// selfClosingHrRe matches <hr>, <hr/>, <hr />.
-	selfClosingHrRe = regexp.MustCompile(`(?i)<hr\s*/?>`)
-	// imgTagRe matches <img ...> tags (self-closing).
-	imgTagRe = regexp.MustCompile(`(?i)<img\s+([^>]*)>`)
 	// commentRe matches HTML comments <!-- ... -->.
 	commentRe = regexp.MustCompile(`<!--[\s\S]*?-->`)
 )
@@ -72,34 +66,23 @@ func renderRawHTML(buf *strings.Builder, n *ast.RawHTML, entering bool, source [
 
 // convertHTML parses an HTML string and converts supported tags to ANSI output.
 // When inline is true, block-level constructs (like <hr>) produce inline equivalents.
+//
+// NOTE: <img>, <br>, and <hr> are handled inside processHTMLTags (not via a
+// regex pre-replacement). Pre-replacing them would inject already-rendered
+// output (containing legitimate ANSI/image escape sequences) into the text
+// stream, where the untrusted-text sanitizer would strip the ESC bytes and
+// leak raw sequence bodies (e.g. Kitty base64 data) to the screen.
 func convertHTML(html string, ctx *RenderContext, inline bool) string {
 	// Strip HTML comments.
 	html = commentRe.ReplaceAllString(html, "")
 
-	// Handle self-closing <br> tags first.
-	html = selfClosingBrRe.ReplaceAllString(html, "\n")
-
-	// Handle self-closing <hr> tags.
-	if !inline {
-		html = selfClosingHrRe.ReplaceAllStringFunc(html, func(_ string) string {
-			return buildThematicBreak(ctx)
-		})
-	} else {
-		html = selfClosingHrRe.ReplaceAllString(html, "\n")
-	}
-
-	// Handle <img> tags.
-	html = imgTagRe.ReplaceAllStringFunc(html, func(tag string) string {
-		return renderImgTag(tag, ctx)
-	})
-
-	// Process remaining tags via state machine.
-	return processHTMLTags(html, ctx)
+	// Process tags via state machine.
+	return processHTMLTags(html, ctx, inline)
 }
 
 // processHTMLTags walks through HTML content, converting known tags to ANSI codes
 // and stripping unknown tags while preserving inner text.
-func processHTMLTags(html string, ctx *RenderContext) string {
+func processHTMLTags(html string, ctx *RenderContext, inline bool) string {
 	var buf strings.Builder
 	lastIndex := 0
 	inSummary := false
@@ -223,9 +206,22 @@ func processHTMLTags(html string, ctx *RenderContext) string {
 		case "sub", "sup":
 			// Terminals can't do sub/superscript; just render text as-is.
 
-		case "br", "hr":
-			// Already handled by regex above, but catch any remaining.
+		case "img":
+			// Render directly into the output buffer so the generated
+			// escape sequences bypass the untrusted-text sanitizer.
+			if !isClosing {
+				buf.WriteString(renderImgTag(attrs, ctx))
+			}
+
+		case "br":
 			buf.WriteByte('\n')
+
+		case "hr":
+			if inline {
+				buf.WriteByte('\n')
+			} else {
+				buf.WriteString(buildThematicBreak(ctx))
+			}
 
 		default:
 			// Unknown tag: strip it, keep inner text.
@@ -252,11 +248,11 @@ func processHTMLTags(html string, ctx *RenderContext) string {
 	return buf.String()
 }
 
-// renderImgTag converts an <img> tag to terminal output.
+// renderImgTag converts an <img> tag (given its attribute string) to terminal output.
 // Uses the existing image rendering pipeline if an image protocol is available,
 // otherwise falls back to "[画像: alt]".
-func renderImgTag(tag string, ctx *RenderContext) string {
-	attrs := extractAttrsMap(tag)
+func renderImgTag(attrsStr string, ctx *RenderContext) string {
+	attrs := extractAttrsMap(attrsStr)
 	alt := attrs["alt"]
 	src := attrs["src"]
 
