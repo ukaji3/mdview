@@ -49,11 +49,11 @@ func TestProperty3_TextDecorationANSIAttributes(t *testing.T) {
 		node := parser.Parse(source)
 		theme := terminal.DefaultTheme()
 		ctx := &RenderContext{
-			TermWidth:    80,
-			ColorMode:    terminal.ColorTrue,
+			TermWidth:     80,
+			ColorMode:     terminal.ColorTrue,
 			ImageProtocol: terminal.ImageNone,
-			Theme:        theme,
-			IsTTY:        true,
+			Theme:         theme,
+			IsTTY:         true,
 		}
 		result := Render(node, source, ctx)
 
@@ -96,11 +96,11 @@ func TestProperty3_InlineCodeANSIAttributes(t *testing.T) {
 		node := parser.Parse(source)
 		theme := terminal.DefaultTheme()
 		ctx := &RenderContext{
-			TermWidth:    80,
-			ColorMode:    terminal.ColorTrue,
+			TermWidth:     80,
+			ColorMode:     terminal.ColorTrue,
 			ImageProtocol: terminal.ImageNone,
-			Theme:        theme,
-			IsTTY:        true,
+			Theme:         theme,
+			IsTTY:         true,
 		}
 		result := Render(node, source, ctx)
 

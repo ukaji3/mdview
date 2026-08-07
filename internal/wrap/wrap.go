@@ -12,6 +12,7 @@ import (
 func isCJK(r rune) bool {
 	return runewidth.RuneWidth(r) == 2
 }
+
 // runeWidth returns the display width of a rune using go-runewidth.
 func runeWidth(r rune) int {
 	return runewidth.RuneWidth(r)

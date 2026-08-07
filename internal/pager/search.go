@@ -5,13 +5,29 @@ import (
 	"strings"
 )
 
-// ansiEscRe matches ANSI escape sequences of the form \033[...m for stripping.
-var ansiEscRe = regexp.MustCompile(`\033\[[0-9;]*[a-zA-Z]`)
+// Regexes matching terminal escape sequences for stripping before search.
+// Covering OSC/DCS/APC as well as CSI prevents search terms from matching
+// invisible content such as image data (Kitty \x1b_G..., Sixel \x1bPq...,
+// iTerm2 \x1b]1337;...) or OSC hyperlink URLs.
+var (
+	searchCSIRe = regexp.MustCompile(`\033\[[0-9;]*[a-zA-Z]`)
+	searchOSCRe = regexp.MustCompile(`\033\][^\x07\033]*(?:\x07|\033\\)`)
+	searchDCSRe = regexp.MustCompile(`\033P[^\033]*\033\\`)
+	searchAPCRe = regexp.MustCompile(`\033_[^\033]*\033\\`)
+)
 
-// stripANSI removes ANSI escape sequences from a string so that
+// stripANSI removes terminal escape sequences from a string so that
 // search matching operates on visible text only.
 func stripANSI(s string) string {
-	return ansiEscRe.ReplaceAllString(s, "")
+	// Fast path: no escape characters at all.
+	if !strings.ContainsRune(s, '\033') {
+		return s
+	}
+	s = searchDCSRe.ReplaceAllString(s, "")
+	s = searchAPCRe.ReplaceAllString(s, "")
+	s = searchOSCRe.ReplaceAllString(s, "")
+	s = searchCSIRe.ReplaceAllString(s, "")
+	return s
 }
 
 // Search finds all line indices containing the given term (case-sensitive).

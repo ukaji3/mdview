@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"golang.org/x/term"
 )
@@ -38,8 +39,52 @@ Options:
   --check-image            Check terminal image protocol support
 `
 
+// ErrHelp is returned by ParseArgs when the user requests help (-h / --help).
+// The caller should print Usage() and exit with status 0.
+var ErrHelp = flag.ErrHelp
+
+// Usage returns the usage message.
+func Usage() string {
+	return usageText
+}
+
+// validMermaidThemes is the set of accepted --mermaid-theme values.
+var validMermaidThemes = map[string]bool{
+	"default": true,
+	"dark":    true,
+	"forest":  true,
+	"neutral": true,
+}
+
+// reorderArgs partitions args so that all flags come before positional
+// arguments. Go's flag package stops parsing at the first non-flag argument,
+// which would silently ignore flags in "mdview FILE --no-color".
+// A bare "--" terminates flag parsing as usual.
+func reorderArgs(args []string) []string {
+	var flags, positionals []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "--" {
+			positionals = append(positionals, args[i+1:]...)
+			break
+		}
+		if strings.HasPrefix(a, "-") && a != "-" {
+			flags = append(flags, a)
+			// --mermaid-theme takes a separate value argument
+			if (a == "--mermaid-theme" || a == "-mermaid-theme") && i+1 < len(args) {
+				i++
+				flags = append(flags, args[i])
+			}
+			continue
+		}
+		positionals = append(positionals, a)
+	}
+	return append(flags, positionals...)
+}
+
 // ParseArgs parses command-line arguments and returns a Config.
 // args should be os.Args[1:] style (without the program name).
+// Returns ErrHelp if the user requested help.
 func ParseArgs(args []string) (*Config, error) {
 	fs := flag.NewFlagSet("mdview", flag.ContinueOnError)
 	fs.SetOutput(io.Discard) // suppress default flag error output
@@ -52,13 +97,23 @@ func ParseArgs(args []string) (*Config, error) {
 	fs.BoolVar(&cfg.NoColor, "no-color", false, "")
 	fs.BoolVar(&cfg.CheckImage, "check-image", false, "")
 
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(reorderArgs(args)); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil, ErrHelp
+		}
 		return nil, fmt.Errorf("invalid arguments: %w", err)
+	}
+
+	if !validMermaidThemes[cfg.MermaidTheme] {
+		return nil, fmt.Errorf("invalid --mermaid-theme %q (valid: default, dark, forest, neutral)", cfg.MermaidTheme)
 	}
 
 	// Remaining positional argument is the file path
 	remaining := fs.Args()
-	if len(remaining) > 0 {
+	if len(remaining) > 1 {
+		return nil, fmt.Errorf("too many arguments: expected at most one file, got %d", len(remaining))
+	}
+	if len(remaining) == 1 {
 		cfg.FilePath = remaining[0]
 	}
 

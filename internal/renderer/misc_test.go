@@ -24,11 +24,11 @@ func TestProperty11_HorizontalRuleTerminalWidth(t *testing.T) {
 		node := parser.Parse(source)
 		theme := terminal.DefaultTheme()
 		ctx := &RenderContext{
-			TermWidth:    termWidth,
-			ColorMode:    terminal.ColorTrue,
+			TermWidth:     termWidth,
+			ColorMode:     terminal.ColorTrue,
 			ImageProtocol: terminal.ImageNone,
-			Theme:        theme,
-			IsTTY:        true,
+			Theme:         theme,
+			IsTTY:         true,
 		}
 		result := Render(node, source, ctx)
 
@@ -70,11 +70,11 @@ func TestProperty12_LinkRenderingFormat(t *testing.T) {
 		node := parser.Parse(source)
 		theme := terminal.DefaultTheme()
 		ctx := &RenderContext{
-			TermWidth:    80,
-			ColorMode:    terminal.ColorTrue,
+			TermWidth:     80,
+			ColorMode:     terminal.ColorTrue,
 			ImageProtocol: terminal.ImageNone,
-			Theme:        theme,
-			IsTTY:        true,
+			Theme:         theme,
+			IsTTY:         true,
 		}
 		result := Render(node, source, ctx)
 
@@ -99,9 +99,13 @@ func TestProperty12_LinkRenderingFormat(t *testing.T) {
 			t.Fatalf("expected LinkColor %q in output, got %q", theme.LinkColor, result)
 		}
 
-		// 4e. Verify Reset is present
-		if !strings.Contains(result, Reset) {
-			t.Fatalf("expected Reset ANSI code in output, got %q", result)
+		// 4e. Verify the link styles are turned off with specific off-codes
+		// (UnderlineOff + FgDefault) so outer styles are preserved
+		if !strings.Contains(result, UnderlineOff) {
+			t.Fatalf("expected UnderlineOff ANSI code in output, got %q", result)
+		}
+		if !strings.Contains(result, FgDefault) {
+			t.Fatalf("expected FgDefault ANSI code in output, got %q", result)
 		}
 	})
 }
@@ -112,11 +116,11 @@ func TestHorizontalRule_Basic(t *testing.T) {
 	node := parser.Parse(source)
 	theme := terminal.DefaultTheme()
 	ctx := &RenderContext{
-		TermWidth:    80,
-		ColorMode:    terminal.ColorTrue,
+		TermWidth:     80,
+		ColorMode:     terminal.ColorTrue,
 		ImageProtocol: terminal.ImageNone,
-		Theme:        theme,
-		IsTTY:        true,
+		Theme:         theme,
+		IsTTY:         true,
 	}
 	result := Render(node, source, ctx)
 
@@ -133,11 +137,11 @@ func TestLink_Basic(t *testing.T) {
 	node := parser.Parse(source)
 	theme := terminal.DefaultTheme()
 	ctx := &RenderContext{
-		TermWidth:    80,
-		ColorMode:    terminal.ColorTrue,
+		TermWidth:     80,
+		ColorMode:     terminal.ColorTrue,
 		ImageProtocol: terminal.ImageNone,
-		Theme:        theme,
-		IsTTY:        true,
+		Theme:         theme,
+		IsTTY:         true,
 	}
 	result := Render(node, source, ctx)
 

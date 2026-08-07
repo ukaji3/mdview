@@ -28,11 +28,11 @@ func TestProperty2_HeadingLevelANSIDecoration(t *testing.T) {
 		node := parser.Parse(source)
 		theme := terminal.DefaultTheme()
 		ctx := &RenderContext{
-			TermWidth:    80,
-			ColorMode:    terminal.ColorTrue,
+			TermWidth:     80,
+			ColorMode:     terminal.ColorTrue,
 			ImageProtocol: terminal.ImageNone,
-			Theme:        theme,
-			IsTTY:        true,
+			Theme:         theme,
+			IsTTY:         true,
 		}
 		result := Render(node, source, ctx)
 

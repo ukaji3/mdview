@@ -1,20 +1,6 @@
 package renderer
 
-import (
-	"regexp"
-)
-
-// TODO: 5つの正規表現を順次適用しているため非効率です。
-// 単一パスのステートマシンによる実装がより効率的ですが、
-// 現時点では正確性を優先しています。
-
-var (
-	csiRe       = regexp.MustCompile(`\033\[[0-9;]*[a-zA-Z]`)
-	oscRe       = regexp.MustCompile(`\033\][^\x07]*(?:\x07|\033\\)`)
-	dcsRe       = regexp.MustCompile(`\033P[^\033]*\033\\`)
-	apcRe       = regexp.MustCompile(`\033_[^\033]*\033\\`)
-	simpleEscRe = regexp.MustCompile(`\033[^\[\]P_]`)
-)
+import "strings"
 
 // StripANSI removes all ANSI escape sequences from the given string.
 // This includes:
@@ -25,11 +11,63 @@ var (
 //   - Simple escape sequences (\033X)
 //
 // Used when ColorMode is ColorNone (NO_COLOR set or pipe output).
+// Implemented as a single-pass state machine (no regexp) for speed.
 func StripANSI(s string) string {
-	s = dcsRe.ReplaceAllString(s, "")
-	s = apcRe.ReplaceAllString(s, "")
-	s = oscRe.ReplaceAllString(s, "")
-	s = csiRe.ReplaceAllString(s, "")
-	s = simpleEscRe.ReplaceAllString(s, "")
-	return s
+	if !strings.ContainsRune(s, '\033') {
+		return s
+	}
+
+	var b strings.Builder
+	b.Grow(len(s))
+
+	i := 0
+	n := len(s)
+	for i < n {
+		c := s[i]
+		if c != '\033' {
+			b.WriteByte(c)
+			i++
+			continue
+		}
+		// Escape sequence
+		if i+1 >= n {
+			// Trailing lone ESC: drop it
+			break
+		}
+		switch s[i+1] {
+		case '[': // CSI: until final byte in @-~
+			i += 2
+			for i < n && !(s[i] >= '@' && s[i] <= '~') {
+				i++
+			}
+			if i < n {
+				i++
+			}
+		case ']': // OSC: until BEL or ST
+			i += 2
+			for i < n {
+				if s[i] == '\x07' {
+					i++
+					break
+				}
+				if s[i] == '\033' && i+1 < n && s[i+1] == '\\' {
+					i += 2
+					break
+				}
+				i++
+			}
+		case 'P', '_': // DCS / APC: until ST
+			i += 2
+			for i < n {
+				if s[i] == '\033' && i+1 < n && s[i+1] == '\\' {
+					i += 2
+					break
+				}
+				i++
+			}
+		default: // Simple escape sequence: ESC + one byte
+			i += 2
+		}
+	}
+	return b.String()
 }

@@ -193,14 +193,14 @@ func TestImageRows(t *testing.T) {
 		cellHeight int
 		expected   int
 	}{
-		{160, 16, 10},  // exact division
-		{161, 16, 11},  // rounds up
-		{1, 16, 1},     // minimum 1 row
-		{0, 16, 1},     // zero height -> 1 row minimum (via ceil)
-		{100, 20, 5},   // exact division
-		{101, 20, 6},   // rounds up
-		{16, 0, 1},     // zero cell height -> fallback to 16, ceil(16/16)=1
-		{32, -1, 2},    // negative cell height -> fallback to 16, ceil(32/16)=2
+		{160, 16, 10}, // exact division
+		{161, 16, 11}, // rounds up
+		{1, 16, 1},    // minimum 1 row
+		{0, 16, 1},    // zero height -> 1 row minimum (via ceil)
+		{100, 20, 5},  // exact division
+		{101, 20, 6},  // rounds up
+		{16, 0, 1},    // zero cell height -> fallback to 16, ceil(16/16)=1
+		{32, -1, 2},   // negative cell height -> fallback to 16, ceil(32/16)=2
 	}
 	for _, tt := range tests {
 		got := imageRows(tt.imgHeight, tt.cellHeight)

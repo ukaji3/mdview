@@ -55,10 +55,11 @@ func renderCodeBlock(buf *strings.Builder, n *ast.CodeBlock, entering bool, sour
 // The box uses Unicode box drawing characters and fills to terminal width.
 //
 // Layout:
-//   ┌─ lang ───────────────────────────┐
-//   │  1 │ code line 1                 │
-//   │  2 │ code line 2                 │
-//   └───────────────────────────────────┘
+//
+//	┌─ lang ───────────────────────────┐
+//	│  1 │ code line 1                 │
+//	│  2 │ code line 2                 │
+//	└───────────────────────────────────┘
 func renderCodeBox(buf *strings.Builder, lines []string, lang string, ctx *RenderContext) {
 	width := ctx.TermWidth
 	if width <= 0 {
@@ -129,8 +130,9 @@ func renderCodeBox(buf *strings.Builder, lines []string, lang string, ctx *Rende
 		lineNum := i + 1
 		numStr := fmt.Sprintf("%*d", lineNumWidth, lineNum)
 
-		// Truncate code line if it exceeds the available code area width
-		displayLine := truncateLine(line, codeAreaWidth)
+		// Expand tabs so width calculation matches terminal rendering,
+		// then truncate to the available code area width.
+		displayLine := truncateLine(expandTabs(line), codeAreaWidth)
 
 		// Pad the display line to fill the code area
 		padLen := codeAreaWidth - displayWidth(displayLine)
@@ -179,57 +181,79 @@ func renderCodeBox(buf *strings.Builder, lines []string, lang string, ctx *Rende
 // displayWidth returns the visible character width of a string,
 // ignoring ANSI escape sequences (CSI, OSC, DCS, APC).
 // Uses go-runewidth for accurate East Asian Width handling.
+// Iterates the string directly (no []rune allocation).
 func displayWidth(s string) int {
 	w := 0
-	i := 0
-	runes := []rune(s)
-	for i < len(runes) {
-		r := runes[i]
-		if r == '\033' && i+1 < len(runes) {
-			next := runes[i+1]
-			switch next {
-			case '[': // CSI
-				i += 2
-				for i < len(runes) && !((runes[i] >= 'a' && runes[i] <= 'z') || (runes[i] >= 'A' && runes[i] <= 'Z')) {
-					i++
-				}
-				if i < len(runes) {
-					i++
-				}
-				continue
-			case ']': // OSC - terminated by BEL or ST
-				i += 2
-				for i < len(runes) {
-					if runes[i] == '\x07' {
-						i++
-						break
-					}
-					if runes[i] == '\033' && i+1 < len(runes) && runes[i+1] == '\\' {
-						i += 2
-						break
-					}
-					i++
-				}
-				continue
-			case 'P', '_': // DCS or APC - terminated by ST
-				i += 2
-				for i < len(runes) {
-					if runes[i] == '\033' && i+1 < len(runes) && runes[i+1] == '\\' {
-						i += 2
-						break
-					}
-					i++
-				}
-				continue
-			default:
-				i += 2
-				continue
+	inEsc := 0 // 0=normal, 1=CSI, 2=OSC, 3=DCS/APC
+	prev := rune(0)
+	for _, r := range s {
+		switch inEsc {
+		case 1: // CSI: ends at final byte @-~ (but not the leading '[')
+			if prev != '\033' && r >= '@' && r <= '~' {
+				inEsc = 0
 			}
+			prev = r
+			continue
+		case 2: // OSC: ends at BEL or ST
+			if r == '\x07' || (prev == '\033' && r == '\\') {
+				inEsc = 0
+			}
+			prev = r
+			continue
+		case 3: // DCS/APC: ends at ST
+			if prev == '\033' && r == '\\' {
+				inEsc = 0
+			}
+			prev = r
+			continue
+		}
+		if prev == '\033' {
+			switch r {
+			case '[':
+				inEsc = 1
+			case ']':
+				inEsc = 2
+			case 'P', '_':
+				inEsc = 3
+			default:
+				// simple two-byte escape: consumed
+			}
+			prev = r
+			continue
+		}
+		if r == '\033' {
+			prev = r
+			continue
 		}
 		w += runewidth.RuneWidth(r)
-		i++
+		prev = r
 	}
 	return w
+}
+
+// tabWidth is the number of spaces a tab expands to inside code boxes.
+const tabWidth = 4
+
+// expandTabs replaces tab characters with spaces so that width calculation
+// and the actual terminal rendering agree (runewidth treats '\t' as width 0,
+// which would misalign the box borders).
+func expandTabs(line string) string {
+	if !strings.ContainsRune(line, '\t') {
+		return line
+	}
+	var b strings.Builder
+	col := 0
+	for _, r := range line {
+		if r == '\t' {
+			spaces := tabWidth - col%tabWidth
+			b.WriteString(strings.Repeat(" ", spaces))
+			col += spaces
+			continue
+		}
+		b.WriteRune(r)
+		col += runewidth.RuneWidth(r)
+	}
+	return b.String()
 }
 
 // truncateLine truncates a line to fit within maxWidth visible columns.

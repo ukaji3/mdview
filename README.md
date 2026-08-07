@@ -77,6 +77,7 @@ mdview --check-image
 | オプション | 説明 |
 |---|---|
 | `--mermaid-theme <theme>` | Mermaidテーマ（default / dark / forest / neutral） |
+| `--no-mermaid` | Mermaid図の描画を無効化（コードブロックとして表示） |
 | `--pretty-print` | ASTからMarkdownを再生成して出力 |
 | `--no-pager` | ページャーモードを無効化 |
 | `--no-color` | 色・装飾を無効化してプレーンテキスト出力 |

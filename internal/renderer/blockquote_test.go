@@ -1,7 +1,6 @@
 package renderer
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
@@ -30,11 +29,11 @@ func TestProperty8_BlockquoteNestLevelVerticalBars(t *testing.T) {
 		node := parser.Parse(source)
 		theme := terminal.DefaultTheme()
 		ctx := &RenderContext{
-			TermWidth:    80,
-			ColorMode:    terminal.ColorTrue,
+			TermWidth:     80,
+			ColorMode:     terminal.ColorTrue,
 			ImageProtocol: terminal.ImageNone,
-			Theme:        theme,
-			IsTTY:        true,
+			Theme:         theme,
+			IsTTY:         true,
 		}
 		result := Render(node, source, ctx)
 
@@ -75,11 +74,11 @@ func TestBlockquote_SingleLevel(t *testing.T) {
 	node := parser.Parse(source)
 	theme := terminal.DefaultTheme()
 	ctx := &RenderContext{
-		TermWidth:    80,
-		ColorMode:    terminal.ColorTrue,
+		TermWidth:     80,
+		ColorMode:     terminal.ColorTrue,
 		ImageProtocol: terminal.ImageNone,
-		Theme:        theme,
-		IsTTY:        true,
+		Theme:         theme,
+		IsTTY:         true,
 	}
 	result := Render(node, source, ctx)
 
@@ -100,11 +99,11 @@ func TestBlockquote_NestedTwoLevels(t *testing.T) {
 	node := parser.Parse(source)
 	theme := terminal.DefaultTheme()
 	ctx := &RenderContext{
-		TermWidth:    80,
-		ColorMode:    terminal.ColorTrue,
+		TermWidth:     80,
+		ColorMode:     terminal.ColorTrue,
 		ImageProtocol: terminal.ImageNone,
-		Theme:        theme,
-		IsTTY:        true,
+		Theme:         theme,
+		IsTTY:         true,
 	}
 	result := Render(node, source, ctx)
 
@@ -123,11 +122,11 @@ func TestBlockquote_InnerMarkdownElements(t *testing.T) {
 	node := parser.Parse(source)
 	theme := terminal.DefaultTheme()
 	ctx := &RenderContext{
-		TermWidth:    80,
-		ColorMode:    terminal.ColorTrue,
+		TermWidth:     80,
+		ColorMode:     terminal.ColorTrue,
 		ImageProtocol: terminal.ImageNone,
-		Theme:        theme,
-		IsTTY:        true,
+		Theme:         theme,
+		IsTTY:         true,
 	}
 	result := Render(node, source, ctx)
 
@@ -145,39 +144,38 @@ func TestBlockquote_InnerMarkdownElements(t *testing.T) {
 	}
 }
 
-// Unit test: blockquoteNestLevel helper
-func TestBlockquoteNestLevel(t *testing.T) {
-	tests := []struct {
-		markdown string
-		expected int // expected nest level for innermost blockquote
-	}{
-		{"> text", 0},
-		{"> > text", 1},
-		{"> > > text", 2},
+// Unit test: multi-line blockquotes prefix EVERY line with a bar.
+func TestBlockquoteMultiLinePrefix(t *testing.T) {
+	source := []byte("> line one\n> line two\n> line three")
+	node := parser.Parse(source)
+	theme := terminal.DefaultTheme()
+	ctx := &RenderContext{
+		TermWidth:     80,
+		ColorMode:     terminal.ColorTrue,
+		ImageProtocol: terminal.ImageNone,
+		Theme:         theme,
+		IsTTY:         true,
+	}
+	result := Render(node, source, ctx)
+
+	// Every non-empty output line containing quote text must start with a bar.
+	for _, line := range strings.Split(result, "\n") {
+		plain := StripANSI(line)
+		if strings.TrimSpace(plain) == "" {
+			continue
+		}
+		if !strings.HasPrefix(plain, "│ ") {
+			t.Errorf("expected every blockquote line to start with %q, got %q", "│ ", plain)
+		}
 	}
 
-	for _, tt := range tests {
-		t.Run(fmt.Sprintf("nest_%d", tt.expected), func(t *testing.T) {
-			source := []byte(tt.markdown)
-			node := parser.Parse(source)
-
-			// Find the innermost blockquote
-			var innermost *ast.Blockquote
-			ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-				if bq, ok := n.(*ast.Blockquote); ok && entering {
-					innermost = bq
-				}
-				return ast.WalkContinue, nil
-			})
-
-			if innermost == nil {
-				t.Fatal("no blockquote found")
-			}
-
-			level := blockquoteNestLevel(innermost)
-			if level != tt.expected {
-				t.Errorf("expected nest level %d, got %d", tt.expected, level)
-			}
-		})
+	// All three lines must be present.
+	for _, want := range []string{"line one", "line two", "line three"} {
+		if !strings.Contains(result, want) {
+			t.Errorf("expected %q in output, got %q", want, result)
+		}
 	}
 }
+
+// Ensure the ast import remains used for the walker in other tests.
+var _ = ast.WalkContinue

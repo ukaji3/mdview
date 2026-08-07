@@ -4,9 +4,90 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/mattn/go-runewidth"
 	"github.com/yuin/goldmark/ast"
 	east "github.com/yuin/goldmark/extension/ast"
 )
+
+// markdownEscapeSet contains inline Markdown metacharacters that must be
+// backslash-escaped in plain text so that re-parsing the pretty-printed
+// output yields the same AST (round-trip property).
+const markdownEscapeSet = "\\`*_[]<>~|#"
+
+// isASCIIPunct reports whether r is ASCII punctuation per CommonMark.
+func isASCIIPunct(r rune) bool {
+	return (r >= '!' && r <= '/') || (r >= ':' && r <= '@') ||
+		(r >= '[' && r <= '`') || (r >= '{' && r <= '~')
+}
+
+// unescapeMarkdown removes backslash escapes (a backslash followed by ASCII
+// punctuation). goldmark Text segments are raw source slices that still
+// contain the escaping backslashes, so normalizing first prevents
+// double-escaping on repeated pretty-print passes.
+func unescapeMarkdown(s string) string {
+	if !strings.ContainsRune(s, '\\') {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	runes := []rune(s)
+	for i := 0; i < len(runes); i++ {
+		if runes[i] == '\\' && i+1 < len(runes) && isASCIIPunct(runes[i+1]) {
+			continue // drop the escaping backslash; the next rune is written as-is
+		}
+		b.WriteRune(runes[i])
+	}
+	return b.String()
+}
+
+// escapeMarkdownText backslash-escapes Markdown metacharacters in plain text.
+// The input is normalized (unescaped) first because goldmark segments include
+// original escaping backslashes. Backslash escapes in CommonMark are valid
+// before any ASCII punctuation, so escaping mid-word is harmless for
+// rendering while protecting the round-trip.
+func escapeMarkdownText(s string) string {
+	s = unescapeMarkdown(s)
+	if !strings.ContainsAny(s, markdownEscapeSet) {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s) + 8)
+	for _, r := range s {
+		if r < 0x80 && strings.ContainsRune(markdownEscapeSet, r) {
+			b.WriteByte('\\')
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+// writeCodeSpan writes an inline code span, choosing a backtick fence longer
+// than any backtick run inside the content, and padding with spaces when the
+// content starts/ends with a backtick (per CommonMark).
+func writeCodeSpan(buf *strings.Builder, content string) {
+	// Find the longest run of backticks in the content.
+	maxRun, run := 0, 0
+	for _, r := range content {
+		if r == '`' {
+			run++
+			if run > maxRun {
+				maxRun = run
+			}
+		} else {
+			run = 0
+		}
+	}
+	fence := strings.Repeat("`", maxRun+1)
+	pad := ""
+	if strings.HasPrefix(content, "`") || strings.HasSuffix(content, "`") {
+		pad = " "
+	}
+	buf.WriteString(fence)
+	buf.WriteString(pad)
+	buf.WriteString(content)
+	buf.WriteString(pad)
+	buf.WriteString(fence)
+}
 
 // prettyPrintChildren walks all children of a block-level node.
 func prettyPrintChildren(buf *strings.Builder, node ast.Node, source []byte, listDepth int) {
@@ -97,12 +178,12 @@ func prettyPrintTable(buf *strings.Builder, table *east.Table, source []byte) {
 		}
 	}
 
-	// Compute column widths
+	// Compute column widths (display width, CJK-aware)
 	colWidths := make([]int, numCols)
 	for _, row := range rows {
 		for j, cell := range row {
-			if len(cell) > colWidths[j] {
-				colWidths[j] = len(cell)
+			if w := runewidth.StringWidth(cell); w > colWidths[j] {
+				colWidths[j] = w
 			}
 		}
 	}
@@ -118,7 +199,7 @@ func prettyPrintTable(buf *strings.Builder, table *east.Table, source []byte) {
 	for j, cell := range rows[0] {
 		buf.WriteByte(' ')
 		buf.WriteString(cell)
-		buf.WriteString(strings.Repeat(" ", colWidths[j]-len(cell)))
+		buf.WriteString(strings.Repeat(" ", colWidths[j]-runewidth.StringWidth(cell)))
 		buf.WriteString(" |")
 	}
 	buf.WriteByte('\n')
@@ -157,7 +238,7 @@ func prettyPrintTable(buf *strings.Builder, table *east.Table, source []byte) {
 		for j, cell := range rows[i] {
 			buf.WriteByte(' ')
 			buf.WriteString(cell)
-			buf.WriteString(strings.Repeat(" ", colWidths[j]-len(cell)))
+			buf.WriteString(strings.Repeat(" ", colWidths[j]-runewidth.StringWidth(cell)))
 			buf.WriteString(" |")
 		}
 		buf.WriteByte('\n')
@@ -198,7 +279,7 @@ func prettyPrintNode(buf *strings.Builder, node ast.Node, source []byte, listDep
 		}
 
 	case *ast.Text:
-		buf.Write(n.Segment.Value(source))
+		buf.WriteString(escapeMarkdownText(string(n.Segment.Value(source))))
 		if n.HardLineBreak() {
 			buf.WriteString("  \n")
 		} else if n.SoftLineBreak() {
@@ -206,7 +287,7 @@ func prettyPrintNode(buf *strings.Builder, node ast.Node, source []byte, listDep
 		}
 
 	case *ast.String:
-		buf.Write(n.Value)
+		buf.WriteString(escapeMarkdownText(string(n.Value)))
 
 	case *ast.Emphasis:
 		marker := "*"
@@ -218,13 +299,13 @@ func prettyPrintNode(buf *strings.Builder, node ast.Node, source []byte, listDep
 		buf.WriteString(marker)
 
 	case *ast.CodeSpan:
-		buf.WriteByte('`')
+		var content strings.Builder
 		for c := n.FirstChild(); c != nil; c = c.NextSibling() {
 			if t, ok := c.(*ast.Text); ok {
-				buf.Write(t.Segment.Value(source))
+				content.Write(t.Segment.Value(source))
 			}
 		}
-		buf.WriteByte('`')
+		writeCodeSpan(buf, content.String())
 
 	case *ast.FencedCodeBlock:
 		lang := string(n.Language(source))
@@ -343,7 +424,7 @@ func prettyPrintNode(buf *strings.Builder, node ast.Node, source []byte, listDep
 
 	case *ast.AutoLink:
 		buf.WriteByte('<')
-		buf.Write(n.URL(n.Label(nil)))
+		buf.Write(n.URL(source))
 		buf.WriteByte('>')
 
 	case *ast.RawHTML:

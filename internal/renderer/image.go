@@ -1,6 +1,7 @@
 package renderer
 
 import (
+	"errors"
 	"fmt"
 	"image"
 	"strings"
@@ -14,6 +15,20 @@ import (
 
 // TODO: 画像ロード/リサイズ関数がsixelパッケージに依存しています。
 // 共通の画像ユーティリティパッケージに分離するのが望ましいです。
+
+// imageMaxPixelWidth converts the terminal-width budget (80% of columns)
+// into a pixel width using the detected cell width.
+func imageMaxPixelWidth(ctx *RenderContext) int {
+	cols := int(float64(ctx.TermWidth) * 0.8)
+	if cols < 1 {
+		cols = 1
+	}
+	cellW := ctx.CellWidth
+	if cellW <= 0 {
+		cellW = 8 // fallback: typical cell width in pixels
+	}
+	return cols * cellW
+}
 
 // renderImage renders an image node.
 // When ImageProtocol is set: encodes the image using the appropriate protocol and appends an alt text caption.
@@ -40,13 +55,12 @@ func renderImage(buf *strings.Builder, n *ast.Image, entering bool, source []byt
 		return ast.WalkSkipChildren, nil
 	}
 
-	// Calculate max width as 80% of terminal width
-	maxWidth := int(float64(ctx.TermWidth) * 0.8)
-	if maxWidth < 1 {
-		maxWidth = 1
-	}
+	// Convert the terminal-width budget to pixels and resize BEFORE
+	// measuring the height, so placeholder rows match the displayed size.
+	maxWidthPx := imageMaxPixelWidth(ctx)
+	img = sixel.ResizeImage(img, maxWidthPx)
 
-	encoded, err := encodeImageByProtocol(img, maxWidth, ctx.ImageProtocol)
+	encoded, err := encodeImageByProtocol(img, maxWidthPx, ctx.ImageProtocol)
 	if err != nil {
 		renderImageErrorGeneric(buf, altText, ctx)
 		return ast.WalkSkipChildren, nil
@@ -126,25 +140,23 @@ func renderImageCaption(buf *strings.Builder, altText string, ctx *RenderContext
 }
 
 // renderImageError outputs an error message based on the type of load failure.
+// Classification uses errors.Is with the sixel package's sentinel errors
+// instead of matching error message strings.
 func renderImageError(buf *strings.Builder, err error, altText string, dest string, ctx *RenderContext) {
 	if ctx.Theme != nil && ctx.Theme.ErrorColor != "" {
 		buf.WriteString(ctx.Theme.ErrorColor)
 	}
 
-	errMsg := err.Error()
-	if strings.Contains(errMsg, "failed to open image file") {
-		buf.WriteString("[画像読み込みエラー: ")
-		buf.WriteString(altText)
-		buf.WriteString("]")
-	} else if strings.Contains(errMsg, "failed to download image") {
+	switch {
+	case errors.Is(err, sixel.ErrDownloadFailed):
 		buf.WriteString("[画像取得エラー: ")
 		buf.WriteString(altText)
 		buf.WriteString("]")
-	} else if strings.Contains(errMsg, "failed to decode image") {
+	case errors.Is(err, sixel.ErrDecodeFailed):
 		buf.WriteString("[非対応画像形式: ")
 		buf.WriteString(altText)
 		buf.WriteString("]")
-	} else {
+	default: // ErrOpenFailed and anything else
 		buf.WriteString("[画像読み込みエラー: ")
 		buf.WriteString(altText)
 		buf.WriteString("]")

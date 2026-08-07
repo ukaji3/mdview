@@ -27,7 +27,9 @@ func renderEmphasis(buf *strings.Builder, n *ast.Emphasis, entering bool) (ast.W
 }
 
 // renderCodeSpan renders inline code with background color from the theme.
-// It extracts child text, wraps it with the CodeBg ANSI code, and resets.
+// It extracts child text, wraps it with the CodeBg ANSI code, and restores
+// the default background (NOT a full Reset, so outer styles like bold or
+// heading colors survive an inline code span).
 func renderCodeSpan(buf *strings.Builder, n *ast.CodeSpan, entering bool, source []byte, ctx *RenderContext) (ast.WalkStatus, error) {
 	if entering {
 		// Apply background color from theme
@@ -37,10 +39,10 @@ func renderCodeSpan(buf *strings.Builder, n *ast.CodeSpan, entering bool, source
 		// Extract text from child nodes
 		for c := n.FirstChild(); c != nil; c = c.NextSibling() {
 			if t, ok := c.(*ast.Text); ok {
-				buf.Write(t.Segment.Value(source))
+				buf.WriteString(sanitizeText(string(t.Segment.Value(source))))
 			}
 		}
-		buf.WriteString(Reset)
+		buf.WriteString(BgDefault)
 	}
 	return ast.WalkSkipChildren, nil
 }

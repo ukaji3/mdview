@@ -202,9 +202,10 @@ func TestRenderCodeSpan(t *testing.T) {
 	if !strings.Contains(result, ctx.Theme.CodeBg) {
 		t.Errorf("expected CodeBg ANSI code %q in result, got %q", ctx.Theme.CodeBg, result)
 	}
-	// Should reset after inline code
-	if !strings.Contains(result, Reset) {
-		t.Errorf("expected Reset ANSI code after inline code, got %q", result)
+	// Should restore default background after inline code (not a full Reset,
+	// so outer styles survive)
+	if !strings.Contains(result, BgDefault) {
+		t.Errorf("expected BgDefault ANSI code after inline code, got %q", result)
 	}
 	// Should NOT contain raw backticks wrapping the text
 	if strings.Contains(result, "`fmt.Println`") {

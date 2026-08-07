@@ -1,14 +1,11 @@
 package iterm2
 
 import (
-	"bytes"
-	"encoding/base64"
 	"fmt"
 	"image"
-	"image/png"
 	"strings"
 
-	"github.com/ukaji3/mdview/internal/sixel"
+	"github.com/ukaji3/mdview/internal/imageutil"
 )
 
 // EncodeImage converts an image.Image to an iTerm2 inline image escape sequence.
@@ -19,16 +16,10 @@ func EncodeImage(img image.Image, maxWidth int) (string, error) {
 		return "", fmt.Errorf("nil image")
 	}
 
-	img = sixel.ResizeImage(img, maxWidth)
-
-	// Encode as PNG
-	var pngBuf bytes.Buffer
-	if err := png.Encode(&pngBuf, img); err != nil {
-		return "", fmt.Errorf("failed to encode PNG: %w", err)
+	pngBytes, b64Data, err := imageutil.EncodePNGBase64(img, maxWidth)
+	if err != nil {
+		return "", err
 	}
-
-	pngBytes := pngBuf.Bytes()
-	b64Data := base64.StdEncoding.EncodeToString(pngBytes)
 
 	var buf strings.Builder
 	fmt.Fprintf(&buf, "\x1b]1337;File=inline=1;size=%d;width=auto;height=auto;preserveAspectRatio=1:%s\x07",
